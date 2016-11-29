@@ -1,0 +1,9 @@
+
+model: diagonal
+
+created on: 11-11-2016 23:11:01
+factorization rank (dim.):  20
+learning rate:  0.1
+two corrupted per positive:  True
+normalized entity matrix:  False
+collision check:  True

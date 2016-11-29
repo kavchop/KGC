@@ -1,0 +1,62 @@
+
+
+Author of this implementation: Kavita Chopra (10.2016, version 1.0)
+
+RUN THE CODE: 
+
+TRAINING: 
+- "python transe.py"
+EVALUATION: 
+- "python transe.py evaluate"
+
+
+References:
+- Translating Embeddings for Modeling Multi-relational Data
+  (A. Bordes et al.), 2013
+
+Brief Description of the Representation Learning Model: 
+- TransE embeds entities and relations from a knowledge base into a vector space
+- Linear model that starting from a random initial embedding of dimension k 
+  (hyperparameter) learns embeddings in a way that true triples get a a higher score 
+  and false triples a lower score
+
+Input
+- training data consisting of two sets: positive training data (true triples), and 
+  negative training data, where for every positive triple either the head or tail is 
+  replaced (corrupted) by a random entity 
+- Hyperparameters: 
+  embedding space dimension k, learning rate
+
+Optimization Procedure
+- stochastic gradient descent with mini-batches using Adagrad-method
+
+Knowledge Base
+- subset of Freebase (FBK15) with frequent entities also present in Wikilinks
+
+Split of Data
+- training data: ~480,000 triples
+- validation set   50,000    "
+- test set         59,000    "
+- all sets are disjoint
+- validation on valid data set used to measure performance of model during training and 
+  for employment of early stopping before a maximimum epoch-bound (e.g. 1000)
+
+Validation and Evaluation Protocol
+- for validation mean ranks of correct triples from a list of corrupted triples are reported
+- evaluation on test data after training is complete to measure the quality of the final model 
+- for evaluation hits at ten (proportion of true triples from top ten ranks) are reported
+
+Implementation Remarks
+- before training a new model:
+    - meta-data-file with the customized configurations is created and saved in 'models/' directory
+    - initial embedding is saved to disk for visualization purposes e.g. after dimensionality reduction through PCA
+- at customizable intervals current model is saved to disk so that training may be continued in different sessions
+- global- and hyper-parameters of the model can be configured in the params.py file
+- in related works normalizing entities has shown to improve results: in params.py this can be prevented which will 
+  create model names attached by 'not normalized'
+
+Plotting Models: 
+- all the trained models in the model directory can be plotted by running plot_transe.py:
+- 'python plot_transe.py [not normalized]'
+
+
