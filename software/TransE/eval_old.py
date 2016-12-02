@@ -1,7 +1,6 @@
 import numpy as np
 import timeit
 from input import pickle_object
-import tensorflow as tf 
 
 
 
@@ -21,15 +20,6 @@ Evaluation Protocol:
  with the top 10 scores whether they are present in the complete triple store
 -report the proportion of the true triples
 '''
-
-
-#L2 norm for TF tensors
-def tensor_norm(tensor, l1_flag=True):
-    if l1_flag:
-        return tf.reduce_sum(tf.abs(tensor), reduction_indices=1)
-    else: 
-        return tf.sqrt(tf.reduce_sum(tf.square(tensor), reduction_indices=1))
-
 
 #first helper methods for validation and evaluation:
 
@@ -101,100 +91,49 @@ def run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map,
     abs_hits_t = 0
     top_triples =  np.reshape(np.array([]), (0,3))
     
+    for i in range(len(test_matrix)):
+        a_h = {}
+        a_t = {}
+        tail = ent_array_map[test_matrix[i,2]]    
+        head = ent_array_map[test_matrix[i,0]]    
+        label = rel_array_map[test_matrix[i,1]]
+        correct_score = score_func(head + label - tail)  #compute dissimilarity for correct triple
+        fixed_tail = label-tail    # fix tail and label, iterate over head
+        fixed_head = head+label    # fix head and label, iterate over tail
+        for j in range(n):       #iterate over all entities
+            score_h = score_func(ent_array_map[j] + fixed_tail, l1_flag)    #compute dissimilarity 
+            score_t = score_func(fixed_head - ent_array_map[j], l1_flag)
+            a_h[j] = score_h              #add dissimilarity to map a with entity string id from entity_list
+            a_t[j] = score_t 
+    
+        #gives a map of entity to rank 
+        #c is needed to get the rank of the correct entity: c[test_triples[i,0]]
+        c_h = {key: rank for rank, key in enumerate(sorted(a_h, key=a_h.get, reverse=False), 1)}  
+        c_t = {key: rank for rank, key in enumerate(sorted(a_t, key=a_t.get, reverse=False), 1)}
+        rank_sum_t = rank_sum_t + c_t[test_matrix[i,2]] #add rank of correct entity to current rank_sum 
+        rank_sum_h = rank_sum_h + c_h[test_matrix[i,0]] #add rank of correct entity to current rank_sum
 
-    dim = len(ent_array_map[0])
-    print "dim", dim
-    fixed_head = {}
-    fixed_tail = {}
-    h_batch = {}
-    l_batch = {}
-    t_batch = {}
-
-
-    a_h_map = {}
-    a_t_map = {}
-    a_h = {}
-    a_t = {}
-    for i in range(len(ent_array_map)):  
-	 a_h_map[i] = {}
-	 a_t_map[i] = {}
-
-    t_batch_map = {}
-    h_batch_map = {}
-    score_vector_t, score_vector_h = {}, {}
-    score_dict_t, score_dict_h = {}, {}
-    with tf.Session() as sess:
-        # Graph input
-
-        #placeholders and assignment ops to feed the graph with the currrent input batches
-        h_ph = tf.placeholder(tf.float32, shape=(None, dim))     #head (subject)
-        t_ph = tf.placeholder(tf.float32, shape=(None, dim))     #tail (object)
-        l_ph = tf.placeholder(tf.float32, shape=(None, dim))     #label (relation)
+        #printing intermediate scores during eval/validation
+        if eval_mode:
+            abs_hits_h, abs_hits_t, rel_hits_h, rel_hits_t, top_triples = hits_at_ten(i, triples_set, test_matrix, a_h, a_t, abs_hits_h, abs_hits_t, top_triples) 
         
-        h_1 = tf.placeholder(tf.float32, shape=(None, dim))      #head from corrupted counterpart triple 
-        t_1 = tf.placeholder(tf.float32, shape=(None, dim))      #tail from corrupted counterpart triple 
-
-        tensor_op = tensor_norm(h_ph+l_ph-t_ph, l1_flag)
- 
-
-        #op for Variable initialization 
-        init_op = tf.initialize_all_variables()
-
+        if eval_mode and verbose: #case eval and verbose
+            print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode, rel_hits_h, rel_hits_t)
         
-        sess.run(init_op)
-
-       
-        h_batch =  np.asarray([ent_array_map[test_matrix[i,0]] for i in range(len(test_matrix))])
-        l_batch =  np.asarray([rel_array_map[test_matrix[i,1]] for i in range(len(test_matrix))])
-        for i in range(len(ent_array_map)):
-        	t_batch_map[i] =  np.asarray([ent_array_map[i] for j in range(len(test_matrix))])
+        if not eval_mode and verbose: #case not eval and verbose
+            print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode)
+        #else (if not verbose), no need to print 
         
-        #for iteration over head (fixed tail and label) 
-        t_batch =  np.asarray([ent_array_map[test_matrix[i,2]] for i in range(len(test_matrix))])
-        h_batch_map = t_batch_map.copy()
-        
-        for i in range(len(ent_array_map)):
-        	score_vector_t[i] = sess.run(tensor_op, feed_dict = {h_ph: h_batch, l_ph: l_batch, t_ph: t_batch_map[i]})
-                score_vector_h[i] = sess.run(tensor_op, feed_dict = {h_ph: h_batch_map[i], l_ph: l_batch, t_ph: t_batch})
-                #score_dict_t[i] = dict(zip(i*np.ones((len(test_matrix)), dtype=np.int32), score_vector_t[i]))
-                #score_dict_h[i] = dict(zip(i*np.ones((len(test_matrix)), dtype=np.int32), score_vector_t[i]))
-        for i in range(len(test_matrix)): 
-       		for k in range(len(ent_array_map)): 
- 			a_h_map[i][k] = score_vector_h[k][i]
-                        a_t_map[i][k] = score_vector_t[k][i]
- 
-                a_h = a_h_map[i]
-                a_t = a_t_map[i]
-                correct_score = float(sess.run(tensor_op, feed_dict = {h_ph:np.reshape(ent_array_map[test_matrix[i,0]], (1,dim)), l_ph: np.reshape(rel_array_map[test_matrix[i,1]], (1,dim)), t_ph: np.reshape(ent_array_map[test_matrix[i,2]],(1,dim))}))
-		#gives a map of entity to rank 
-		#c is needed to get the rank of the correct entity: c[test_triples[i,0]]
-		c_h = {key: rank for rank, key in enumerate(sorted(a_h, key=a_h.get, reverse=False), 1)}  
-		c_t = {key: rank for rank, key in enumerate(sorted(a_t, key=a_t.get, reverse=False), 1)}
-		rank_sum_t = rank_sum_t + c_t[test_matrix[i,2]] #add rank of correct entity to current rank_sum 
-		rank_sum_h = rank_sum_h + c_h[test_matrix[i,0]] #add rank of correct entity to current rank_sum
-
-		#printing intermediate scores during eval/validation
-		if eval_mode:
-		    abs_hits_h, abs_hits_t, rel_hits_h, rel_hits_t, top_triples = hits_at_ten(i, triples_set, test_matrix, a_h, a_t, abs_hits_h, abs_hits_t, top_triples) 
-		
-		if eval_mode and verbose: #case eval and verbose
-		    print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode, rel_hits_h, rel_hits_t)
-		
-		if not eval_mode and verbose: #case not eval and verbose
-		    print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode)
-		#else (if not verbose), no need to print 
-		
-	rank_mean_h = rank_sum_h/len(test_matrix) 
-	rank_mean_t = rank_sum_t/len(test_matrix)
-	stop = timeit.default_timer()
-	print "\ntime taken for validation: {} min".format((stop - start)/ 60)
-	#print final results: 
-
-	if eval_mode: 
-		print_final_results(rank_mean_h, rank_mean_t, n, eval_mode, rel_hits_h, rel_hits_t)
-		pickle_object('top_triples', 'w', top_triples)
-		return [rank_mean_h, rank_mean_t, rel_hits_h, rel_hits_t]
-	else:
-		print_final_results(rank_mean_h, rank_mean_t, n, eval_mode)
-		return [rank_mean_h, rank_mean_t, 0, 0]
-		
+    rank_mean_h = rank_sum_h/len(test_matrix)  
+    rank_mean_t = rank_sum_t/len(test_matrix) 
+    stop = timeit.default_timer()
+    print "\ntime taken for validation: {} min".format((stop - start)/ 60)
+    #print final results: 
+    
+    if eval_mode: 
+        print_final_results(rank_mean_h, rank_mean_t, n, eval_mode, rel_hits_h, rel_hits_t)
+        pickle_object('top_triples', 'w', top_triples)
+        return [rank_mean_h, rank_mean_t, rel_hits_h, rel_hits_t]
+    else:
+        print_final_results(rank_mean_h, rank_mean_t, n, eval_mode)
+        return [rank_mean_h, rank_mean_t, 0, 0]
