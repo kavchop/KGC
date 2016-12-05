@@ -16,7 +16,7 @@ DATA_PATH = "../../data/"
 MODEL_PATH='models/'+model_name +'_model'
 INITIAL_MODEL='models/'+model_name+'_initial_model'
 RESULTS_PATH='models/'+model_name +'_results'
-
+MODEL_META_PATH = 'models/'+model_name+'_model_meta.txt'
 
 ###################
 
@@ -46,7 +46,7 @@ def swap_cols(arr, frm, to):
 
 #create integer matrix from triple-store usings dicts
 def create_matrix(triples, ent_URI_to_int, rel_URI_to_int): 
-    int_matrix =  np.asarray([[ent_URI_to_int[triples[i,0]], rel_URI_to_int[triples[i,1]], ent_URI_to_int[triples[i,2]]] for i in range(len(triples))])
+    int_matrix =  np.asarray([[ent_URI_to_int[triples[i,0]], rel_URI_to_int[triples[i,1]], ent_URI_to_int[triples[i,2]]] for i in range(len(triples))], dtype=np.int32)
     return int_matrix
 
 
@@ -164,14 +164,19 @@ def create_embed_maps_from_int(n,m, dim):
 
 
 #method writes model configurations to disk 
-def save_model_meta(model_name, dim, learning_rate, normalize_ent, check_collision):
-    text_file = open("models/"+model_name+"_model_meta.txt", "w")
-    text_file.write("\nmodel: {}\n\n".format(model_name))
+def save_model_meta(model_name, dim, learning_rate, normalize_ent, check_collision, global_epoch=None, resumed=False):
+    if resumed==False: 
+	    text_file = open(MODEL_META_PATH, "w")
+	    text_file.write("\nmodel: {}\n\n".format(model_name))
 
-    text_file.write("created on: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S')))
-    text_file.write("dimension:  {}\n".format(dim))
-    text_file.write("learning rate:  {}\n".format(learning_rate))
-    text_file.write("normalized entity vectors:  {}\n".format(normalize_ent))
-    text_file.write("collision check:  {}\n".format(check_collision))
-    text_file.close()
+	    text_file.write("created on: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S')))
+	    text_file.write("embedding dimension:  {}\n".format(dim))
+	    text_file.write("learning rate:  {}\n".format(learning_rate))
+	    text_file.write("normalized entity vectors:  {}\n".format(normalize_ent))
+	    text_file.write("collision check:  {}\n".format(check_collision))
+	    text_file.close()
 
+    if resumed==True: 
+	    new_lines = "\ntraining resumed on {}\nat epoch: {}\nwith learning rate: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S'), global_epoch, learning_rate)
+	    with open(MODEL_META_PATH, "a") as f:
+	    	f.write(new_lines)

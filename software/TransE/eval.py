@@ -53,9 +53,9 @@ def hits_at_ten(i, triples_set, test_matrix, a_h, a_t, abs_hits_h, abs_hits_t, t
     rel_hits_t = float(abs_hits_t)/(10*len(test_matrix)) 
     return abs_hits_h, abs_hits_t, rel_hits_h, rel_hits_t, top_triples
 
-def print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode, rel_hits_h=None, rel_hits_t=None):
+def print_verbose_results(i, entity_offset, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode, rel_hits_h=None, rel_hits_t=None):
     if eval_mode: 
-        print "\ntest triple entity {}:\nmean rank from head repl.: {}  -  more scores:".format(i, c_h[test_matrix[i,0]])
+        print "\ntest triple entity {}:\nmean rank from head repl.: {}  -  more scores:".format(i+entity_offset, c_h[test_matrix[i,0]])
         print "correct: {}    min: {}     max: {}     hit: {}".format(correct_score, 
                                                                              min(a_h.values()), max(a_h.values()),
                                                                              rel_hits_h)
@@ -64,7 +64,7 @@ def print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eva
                                                                  min(a_t.values()), max(a_t.values()),
                                                                  rel_hits_t)
     else: 
-        print "\ntest triple entity {}:\nmean rank from head repl.: {}  -  more scores:".format(i, c_h[test_matrix[i,0]])
+        print "\ntest triple entity {}:\nmean rank from head repl.: {}  -  more scores:".format(i+entity_offset, c_h[test_matrix[i,0]])
         print "correct: {}    min: {}     max: {}".format(correct_score, 
                                                                              min(a_h.values()), max(a_h.values()))
                                                                     
@@ -73,7 +73,7 @@ def print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eva
                                                                  min(a_t.values()), max(a_t.values()))
                                                                  
 def print_final_results(rank_mean_h, rank_mean_t, n, eval_mode, rel_hits_h=None, rel_hits_t=None):
-    print "rank_mean resulting from head replacement: {} (out of total rank number {})".format(rank_mean_h, n)
+    print "\nrank_mean resulting from head replacement: {} (out of total rank number {})".format(rank_mean_h, n)
     print "rank_mean resulting from tail replacement: {} (out of total rank number {})".format(rank_mean_t, n)
     if eval_mode: 
         print "hits@ten for head repl.: {}%".format(rel_hits_h * 100)
@@ -90,8 +90,35 @@ def run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map,
         selected_indices = np.random.randint(len(test_matrix), size=test_size)
         test_matrix = test_matrix[selected_indices] 
 
+
+    CONST = 12
+    sub_matrix_list = np.split(test_matrix, CONST)
+    
+
     start = timeit.default_timer()
     print "\nValidation of current embedding starts!"
+
+    result_sum = np.zeros(4) 
+    print "\nintermediate results from sub-batches: "
+    for i in range(CONST):
+        entity_offset = i*len(test_matrix)/CONST
+        print "result from sub-batch {}".format(i)
+	result_sum += np.array(sub_evaluation(entity_offset, triples_set, sub_matrix_list[i], ent_array_map, rel_array_map, 
+                   score_func, eval_mode, verbose, l1_flag))
+
+    stop = timeit.default_timer()
+    print "\ntime taken for validation: {} min".format((stop - start)/ 60) 
+    final_result = list(np.array(result_sum/CONST, dtype=np.int32))
+    #print final_result
+    return final_result
+	
+ 	
+
+
+def sub_evaluation(entity_offset, triples_set, test_matrix, ent_array_map, rel_array_map, 
+                   score_func, eval_mode=False, verbose=False, l1_flag=True): 
+
+  
     n = len(ent_array_map)
     rank_sum_h = 0
     rank_sum_t = 0
@@ -103,7 +130,6 @@ def run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map,
     
 
     dim = len(ent_array_map[0])
-    print "dim", dim
     fixed_head = {}
     fixed_tail = {}
     h_batch = {}
@@ -138,7 +164,7 @@ def run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map,
  
 
         #op for Variable initialization 
-        init_op = tf.initialize_all_variables()
+        init_op = tf.global_variables_initializer()
 
         
         sess.run(init_op)
@@ -178,18 +204,15 @@ def run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map,
 		    abs_hits_h, abs_hits_t, rel_hits_h, rel_hits_t, top_triples = hits_at_ten(i, triples_set, test_matrix, a_h, a_t, abs_hits_h, abs_hits_t, top_triples) 
 		
 		if eval_mode and verbose: #case eval and verbose
-		    print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode, rel_hits_h, rel_hits_t)
+		    print_verbose_results(i, entity_offset, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode, rel_hits_h, rel_hits_t)
 		
 		if not eval_mode and verbose: #case not eval and verbose
-		    print_verbose_results(i, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode)
+		    print_verbose_results(i, entity_offset,  test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode)
 		#else (if not verbose), no need to print 
 		
 	rank_mean_h = rank_sum_h/len(test_matrix) 
 	rank_mean_t = rank_sum_t/len(test_matrix)
-	stop = timeit.default_timer()
-	print "\ntime taken for validation: {} min".format((stop - start)/ 60)
-	#print final results: 
-
+	
 	if eval_mode: 
 		print_final_results(rank_mean_h, rank_mean_t, n, eval_mode, rel_hits_h, rel_hits_t)
 		pickle_object('top_triples', 'w', top_triples)

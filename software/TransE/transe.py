@@ -66,7 +66,7 @@ model_name = 'transe'
 MODEL_PATH='models/'+model_name +'_model'
 INITIAL_MODEL='models/'+model_name+'_initial_model'
 RESULTS_PATH='models/'+model_name +'_results'
-MODEL_META_PATH='models/'+model_name +'_meta.txt'
+
 
 eval_mode = False
 
@@ -120,9 +120,8 @@ def run_training():
         ent_array_map = transE_model[0]
         rel_array_map = transE_model[1]
 
-	#run evaluation before training of model
 	if eval_mode:	 
-		eval.run_evaluation(triples_set, valid_matrix, ent_array_map, rel_array_map, score_func = input.calc_dissimilarity, eval_mode=True, verbose=True, test_size=valid_size) 
+		eval.run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map, score_func = input.calc_dissimilarity, eval_mode=True, verbose=True, test_size=valid_size) 
 		return
     else: 
         if eval_mode: 
@@ -141,14 +140,12 @@ def run_training():
     if os.path.isfile(RESULTS_PATH):
         results_table = pickle_object(RESULTS_PATH, 'r')
         global_epoch = int(results_table[-1][0]) #update epoch_num
-        new_lines = "\ntraining resumed on {}\nat epoch: {}\nwith learning rate: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S'), global_epoch, learning_rate)
-	with open(MODEL_META_PATH, "a") as f:
-		f.write(new_lines)
+        input.save_model_meta(model_name, dim, learning_rate, normalize_ent, check_collision, global_epoch, resumed=True)
     else: 
-        results_table = np.reshape(np.asarray(['epoch', 'h_mean', 't_mean', 'h_hits', 't_hits']), (1,5))
+        results_table = np.reshape(np.asarray(['epoch', 'h_mean', 't_mean', 'h_hits', 't_hits', 'total_loss']), (1,6))
         #run evaluation after initialization to get the state before training (at epoch 0)
         record = eval.run_evaluation(triples_set, valid_matrix, ent_array_map, rel_array_map, score_func=input.calc_dissimilarity, test_size=valid_size)  
-        new_record = np.reshape(np.asarray([global_epoch]+record), (1,5))
+        new_record = np.reshape(np.asarray([global_epoch]+record+[0]), (1,6))
         print "validation result of current embedding: {}".format(new_record)
         results_table = np.append(results_table, new_record, axis=0)
         transE_model = pickle_object(RESULTS_PATH, 'w', results_table)
@@ -194,7 +191,7 @@ def run_training():
         X_id = np.arange(len(train_matrix))
 
         #op for Variable initialization 
-        init_op = tf.initialize_all_variables()
+        init_op = tf.global_variables_initializer()
 
         
         sess.run(init_op)
@@ -207,6 +204,7 @@ def run_training():
             lt = 0
             rt = batch_size
             start = timeit.default_timer()
+            loss_sum = 0
             for j in range(batch_num): 
                 pos_matrix = np.copy(train_matrix[X_id[lt:rt]])
                 h_batch, l_batch, t_batch = input.create_triple_array_batches(pos_matrix, ent_array_map, rel_array_map)
@@ -222,6 +220,7 @@ def run_training():
                 _, loss_value = sess.run(([trainer, loss]), feed_dict=feed_dict)
                 if train_verbose:
                     print loss_value
+                loss_sum += loss_value
                 #extract the learned variables from this iteration as numpy arrays
                 numpy_h = h.eval()
                 numpy_t = t.eval()
@@ -234,9 +233,11 @@ def run_training():
                 #update l and r: 
                 lt += batch_size
                 rt += batch_size
-	    if normalize_ent: 
-		for k in range(n):
-                 	ent_array_map[k] = input.normalize_vec(ent_array_map[k])   
+            print "total loss of epoch: {}".format(loss_sum)
+            
+            if normalize_ent: 
+                for k in range(n):
+                    ent_array_map[k] = input.normalize_vec(ent_array_map[k])   
  
             stop = timeit.default_timer()
             print "time taken for current epoch: {} min".format((stop - start)/60)
@@ -251,12 +252,15 @@ def run_training():
                 print "done!\ntime taken to write to disk: {} sec\n".format((stop_embed-start_embed))
             if global_epoch == 1 or global_epoch%result_log_cycle == 0:  #may change j to num-epoch 
                 record = eval.run_evaluation(triples_set, valid_matrix, ent_array_map, rel_array_map, score_func = input.calc_dissimilarity, test_size=valid_size, verbose=valid_verbose) 
-                new_record = np.reshape(np.asarray([global_epoch]+record), (1,5))
-                #TODO: LINES FOR EARLY STOPPING
-                
-                print "validation result of current embedding: {}".format(new_record)
+                new_record = np.reshape(np.asarray([global_epoch]+record+[int(loss_sum)]), (1,6))
+                #TODO: LINES FOR EARLY STOPPING  (a[1:-1,1]).tolist()
+              
+		if min(results_table[1:len(results_table),1]) >= new_record[0,1] and min(results_table[1:len(results_table),2]) >= new_record[0,2]:
+			pickle_object('models/'+model_name+'_best_model', 'w', transE_model)
+                print "validation result of current embedding:\n{}\n{}".format(results_table[0,0:3], new_record[0,0:3])
                 results_table = np.append(results_table, new_record, axis=0)
                 pickle_object(RESULTS_PATH, 'w', results_table)
+             
 
     
 def main(arg=None):
@@ -265,4 +269,5 @@ def main(arg=None):
 if __name__=="__main__": 
     tf.app.run()
     #main()    
+    
     
