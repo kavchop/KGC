@@ -149,7 +149,9 @@ def sub_evaluation(entity_offset, triples_set, test_matrix, ent_array_map, rel_a
     h_batch_map = {}
     score_vector_t, score_vector_h = {}, {}
     score_dict_t, score_dict_h = {}, {}
-    with tf.Session() as sess:
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    with tf.Session(config=config) as sess:
         # Graph input
 
         #placeholders and assignment ops to feed the graph with the currrent input batches
