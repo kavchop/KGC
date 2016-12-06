@@ -1,0 +1,8 @@
+
+model: transe
+
+created on: 06-12-2016 20:42:35
+embedding dimension:  20
+learning rate:  0.01
+normalized entity vectors:  True
+collision check:  True

@@ -83,75 +83,17 @@ def print_final_results(rank_mean_h, rank_mean_t, n, eval_mode, rel_hits_h=None,
 
 #now follows main method for validation/evaluation: run_evaluation()
 
-def run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map, 
-                   score_func, 
-                   test_size=None, eval_mode=False, verbose=False, l1_flag=True): 
-    if test_size != None: 
-        selected_indices = np.random.randint(len(test_matrix), size=test_size)
-        test_matrix = test_matrix[selected_indices] 
-
-
-    CONST = 12
-    sub_matrix_list = np.split(test_matrix, CONST)
-    
-
-    start = timeit.default_timer()
-    print "\nValidation of current embedding starts!"
-
-    result_sum = np.zeros(4) 
-    print "\nintermediate results from sub-batches: "
-    for i in range(CONST):
-        entity_offset = i*len(test_matrix)/CONST
-        print "result from sub-batch {}".format(i)
-	result_sum += np.array(sub_evaluation(entity_offset, triples_set, sub_matrix_list[i], ent_array_map, rel_array_map, 
-                   score_func, eval_mode, verbose, l1_flag))
-
-    stop = timeit.default_timer()
-    print "\ntime taken for validation: {} min".format((stop - start)/ 60) 
-    final_result = list(np.array(result_sum/CONST, dtype=np.int32))
-    #print final_result
-    return final_result
-	
- 	
-
-
-def sub_evaluation(entity_offset, triples_set, test_matrix, ent_array_map, rel_array_map, 
-                   score_func, eval_mode=False, verbose=False, l1_flag=True): 
-
+def run_evaluation(triples_set, total_test_matrix, ent_array_map, rel_array_map, 
+                   score_func, test_size=None, eval_mode=False, verbose=False, l1_flag=True): 
   
     n = len(ent_array_map)
-    rank_sum_h = 0
-    rank_sum_t = 0
-    hit_ten_h = []
-    hit_ten_t = []
-    abs_hits_h = 0    #absolute number of hits from top ten ranked triples
-    abs_hits_t = 0
-    top_triples =  np.reshape(np.array([]), (0,3))
-    
-
     dim = len(ent_array_map[0])
-    fixed_head = {}
-    fixed_tail = {}
-    h_batch = {}
-    l_batch = {}
-    t_batch = {}
 
 
-    a_h_map = {}
-    a_t_map = {}
-    a_h = {}
-    a_t = {}
-    for i in range(len(ent_array_map)):  
-	 a_h_map[i] = {}
-	 a_t_map[i] = {}
-
-    t_batch_map = {}
-    h_batch_map = {}
-    score_vector_t, score_vector_h = {}, {}
-    score_dict_t, score_dict_h = {}, {}
-    config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.5
-    with tf.Session(config=config) as sess:
+    #config = tf.ConfigProto()
+    #config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    #with tf.Session(config=config) as sess:
+    with tf.Session() as sess:
         # Graph input
 
         #placeholders and assignment ops to feed the graph with the currrent input batches
@@ -165,61 +107,102 @@ def sub_evaluation(entity_offset, triples_set, test_matrix, ent_array_map, rel_a
         tensor_op = tensor_norm(h_ph+l_ph-t_ph, l1_flag)
  
 
-        #op for Variable initialization 
-        init_op = tf.global_variables_initializer()
 
+	if test_size != None: 
+		selected_indices = np.random.randint(len(total_test_matrix), size=test_size)
+		total_test_matrix = total_test_matrix[selected_indices] 
+
+        CONST = 5
+        sub_matrix_list = np.split(total_test_matrix, CONST)
+    
+
+        #op for Variable initialization 
+        #init_op = tf.initialize_all_variables() 
+	init_op = tf.global_variables_initializer()
         
         sess.run(init_op)
 
-       
-        h_batch =  np.asarray([ent_array_map[test_matrix[i,0]] for i in range(len(test_matrix))])
-        l_batch =  np.asarray([rel_array_map[test_matrix[i,1]] for i in range(len(test_matrix))])
-        for i in range(len(ent_array_map)):
-        	t_batch_map[i] =  np.asarray([ent_array_map[i] for j in range(len(test_matrix))])
-        
-        #for iteration over head (fixed tail and label) 
-        t_batch =  np.asarray([ent_array_map[test_matrix[i,2]] for i in range(len(test_matrix))])
-        h_batch_map = t_batch_map.copy()
-        
-        for i in range(len(ent_array_map)):
-        	score_vector_t[i] = sess.run(tensor_op, feed_dict = {h_ph: h_batch, l_ph: l_batch, t_ph: t_batch_map[i]})
-                score_vector_h[i] = sess.run(tensor_op, feed_dict = {h_ph: h_batch_map[i], l_ph: l_batch, t_ph: t_batch})
-                #score_dict_t[i] = dict(zip(i*np.ones((len(test_matrix)), dtype=np.int32), score_vector_t[i]))
-                #score_dict_h[i] = dict(zip(i*np.ones((len(test_matrix)), dtype=np.int32), score_vector_t[i]))
-        for i in range(len(test_matrix)): 
-       		for k in range(len(ent_array_map)): 
- 			a_h_map[i][k] = score_vector_h[k][i]
-                        a_t_map[i][k] = score_vector_t[k][i]
- 
-                a_h = a_h_map[i]
-                a_t = a_t_map[i]
-                correct_score = float(sess.run(tensor_op, feed_dict = {h_ph:np.reshape(ent_array_map[test_matrix[i,0]], (1,dim)), l_ph: np.reshape(rel_array_map[test_matrix[i,1]], (1,dim)), t_ph: np.reshape(ent_array_map[test_matrix[i,2]],(1,dim))}))
-		#gives a map of entity to rank 
-		#c is needed to get the rank of the correct entity: c[test_triples[i,0]]
-		c_h = {key: rank for rank, key in enumerate(sorted(a_h, key=a_h.get, reverse=False), 1)}  
-		c_t = {key: rank for rank, key in enumerate(sorted(a_t, key=a_t.get, reverse=False), 1)}
-		rank_sum_t = rank_sum_t + c_t[test_matrix[i,2]] #add rank of correct entity to current rank_sum 
-		rank_sum_h = rank_sum_h + c_h[test_matrix[i,0]] #add rank of correct entity to current rank_sum
+        start = timeit.default_timer()  #stop = timeit.default_timer()
+        print "\nValidation of current embedding starts!"
 
-		#printing intermediate scores during eval/validation
-		if eval_mode:
-		    abs_hits_h, abs_hits_t, rel_hits_h, rel_hits_t, top_triples = hits_at_ten(i, triples_set, test_matrix, a_h, a_t, abs_hits_h, abs_hits_t, top_triples) 
+        result_sum = np.zeros(4) 
+        print "\nintermediate results from sub-batches: "
+        for c in range(CONST):
+	        rank_sum_h = 0
+	        rank_sum_t = 0
+	        hit_ten_h = []
+	        hit_ten_t = []
+	        abs_hits_h = 0    #absolute number of hits from top ten ranked triples
+	        abs_hits_t = 0
+	        top_triples =  np.reshape(np.array([]), (0,3))
+
+	        a_h_map = {}
+	        a_t_map = {}
+	        a_h = {}
+	        a_t = {}
+	        for i in range(len(ent_array_map)):  
+		 	a_h_map[i] = {}
+		 	a_t_map[i] = {}
+
+	        t_batch_map = {}
+	        h_batch_map = {}
+	        score_vector_t, score_vector_h = {}, {}
+
+                test_matrix = sub_matrix_list[c]
+		h_batch =  np.asarray([ent_array_map[test_matrix[i,0]] for i in range(len(test_matrix))])
+		l_batch =  np.asarray([rel_array_map[test_matrix[i,1]] for i in range(len(test_matrix))])
+
+		for i in range(len(ent_array_map)):
+			t_batch_map[i] =  np.asarray([ent_array_map[i] for j in range(len(test_matrix))])
 		
-		if eval_mode and verbose: #case eval and verbose
-		    print_verbose_results(i, entity_offset, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode, rel_hits_h, rel_hits_t)
+		#for iteration over head (fixed tail and label) 
+		t_batch =  np.asarray([ent_array_map[test_matrix[i,2]] for i in range(len(test_matrix))])
+		h_batch_map = t_batch_map.copy()
 		
-		if not eval_mode and verbose: #case not eval and verbose
-		    print_verbose_results(i, entity_offset,  test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode)
-		#else (if not verbose), no need to print 
+		for i in range(len(ent_array_map)):
+			score_vector_t[i] = sess.run(tensor_op, feed_dict = {h_ph: h_batch, l_ph: l_batch, t_ph: t_batch_map[i]})
+		        score_vector_h[i] = sess.run(tensor_op, feed_dict = {h_ph: h_batch_map[i], l_ph: l_batch, t_ph: t_batch})
+		       
+		for i in range(len(test_matrix)): 
+	       		for k in range(len(ent_array_map)): 
+	 			a_h_map[i][k] = score_vector_h[k][i]
+		                a_t_map[i][k] = score_vector_t[k][i]
+	 
+		        a_h = a_h_map[i]
+		        a_t = a_t_map[i]
+		        correct_score = float(sess.run(tensor_op, feed_dict = {h_ph:np.reshape(ent_array_map[test_matrix[i,0]], (1,dim)), l_ph: np.reshape(rel_array_map[test_matrix[i,1]], (1,dim)), t_ph: np.reshape(ent_array_map[test_matrix[i,2]],(1,dim))}))
+			#gives a map of entity to rank 
+			#c is needed to get the rank of the correct entity: c[test_triples[i,0]]
+			c_h = {key: rank for rank, key in enumerate(sorted(a_h, key=a_h.get, reverse=False), 1)}  
+			c_t = {key: rank for rank, key in enumerate(sorted(a_t, key=a_t.get, reverse=False), 1)}
+			rank_sum_t = rank_sum_t + c_t[test_matrix[i,2]] #add rank of correct entity to current rank_sum 
+			rank_sum_h = rank_sum_h + c_h[test_matrix[i,0]] #add rank of correct entity to current rank_sum
+
+			#printing intermediate scores during eval/validation
+			if eval_mode:
+			    abs_hits_h, abs_hits_t, rel_hits_h, rel_hits_t, top_triples = hits_at_ten(i, triples_set, test_matrix, a_h, a_t, abs_hits_h, abs_hits_t, top_triples) 
 		
-	rank_mean_h = rank_sum_h/len(test_matrix) 
-	rank_mean_t = rank_sum_t/len(test_matrix)
+			if eval_mode and verbose: #case eval and verbose
+			    print_verbose_results(i, entity_offset, test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode, rel_hits_h, rel_hits_t)
+		
+			if not eval_mode and verbose: #case not eval and verbose
+			    print_verbose_results(i, entity_offset,  test_matrix, a_h, a_t, c_h, c_t, correct_score, eval_mode)
+			#else (if not verbose), no need to print 
+		
+		rank_mean_h = rank_sum_h/len(test_matrix) 
+		rank_mean_t = rank_sum_t/len(test_matrix)
 	
-	if eval_mode: 
-		print_final_results(rank_mean_h, rank_mean_t, n, eval_mode, rel_hits_h, rel_hits_t)
-		pickle_object('top_triples', 'w', top_triples)
-		return [rank_mean_h, rank_mean_t, rel_hits_h, rel_hits_t]
-	else:
-		print_final_results(rank_mean_h, rank_mean_t, n, eval_mode)
-		return [rank_mean_h, rank_mean_t, 0, 0]
-		
+		if eval_mode: 
+			print_final_results(rank_mean_h, rank_mean_t, n, eval_mode, rel_hits_h, rel_hits_t)
+			pickle_object('top_triples', 'w', top_triples)
+			result_sum += np.array([rank_mean_h, rank_mean_t, rel_hits_h, rel_hits_t])
+		else:
+ 			if c%2 == 0:
+				print_final_results(rank_mean_h, rank_mean_t, n, eval_mode)
+			result_sum += np.array([rank_mean_h, rank_mean_t, 0, 0])
+    	
+        stop = timeit.default_timer()
+        print "\ntime taken for validation: {} min".format((stop - start)/ 60) 
+        final_result = list(np.array(result_sum/CONST, dtype=np.int32))
+        print final_result
+        return final_result 

@@ -152,9 +152,10 @@ def run_training():
 
 
 
-    config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.5
-    with tf.Session(config=config) as sess:
+    #config = tf.ConfigProto()
+    #config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    #with tf.Session(config=config) as sess:
+    with tf.Session() as sess:
         # Graph input
 
         # TF variables that learn in a mini-batch iteration
@@ -193,7 +194,7 @@ def run_training():
         X_id = np.arange(len(train_matrix))
 
         #op for Variable initialization 
-        init_op = tf.global_variables_initializer()
+        init_op = tf.initialize_all_variables() #tf.global_variables_initializer()
 
         
         sess.run(init_op)
