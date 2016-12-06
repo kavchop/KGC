@@ -152,7 +152,9 @@ def run_training():
 
 
 
-    with tf.Session() as sess:
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    with tf.Session(config=config) as sess:
         # Graph input
 
         # TF variables that learn in a mini-batch iteration
