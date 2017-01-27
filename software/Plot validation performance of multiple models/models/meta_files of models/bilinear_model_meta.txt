@@ -1,9 +1,0 @@
-
-model: bilinear
-
-created on: 14-11-2016 02:12:38
-factorization rank (dim.):  20
-learning rate:  0.1
-two corrupted per positive:  True
-normalized entity matrix:  True
-collision check:  True
