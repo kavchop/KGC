@@ -6,23 +6,23 @@ Script plots the validation results for the trained model in this directory from
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import params 
+import params
 
-dataset = params.dataset
 
 dim = 20
-model_name = 'bilinear'
-model_name = 'diagonal'
-MODELS_PATH = '../../../data/Trained Models/'+model_name+'/' + dataset + '/dim = '+str(dim) +'/'
+model_name = 'transe'
+dataset = params.dataset
 
+PATH = '../../../data/Trained Models/'+model_name+'/' + dataset + '/dim = '+str(dim) +'/'
 
 def main(arg=None): 
+
 	try:
-		file_ = open(MODELS_PATH+model_name+'_results','r')
+		file_ = open(PATH+model_name+'_results','r')
 	except IOError: 
  		print "\nNo {} model has been trained yet. Please train a model before plotting.\n".format(model_name)
                 return	
-	file_ = open(MODELS_PATH+model_name+'_results','r')
+	file_ = open(PATH+model_name+'_results','r')
 	results = pickle.load(file_)    #list of tuples for pos_map and neg_map
 	file_.close()
 
@@ -58,8 +58,6 @@ def main(arg=None):
 	plt.title(model_name+' model - loss during training')
 	plt.show()
         print loss
-
-        print "\nTo plot other trained models, run the code again with following args:\n\t'python plot_bilinear.py [not normalized]'\n\t'python plot_bilinear.py diagonal [not normalized]'\n"
 
 
 if __name__=="__main__": 

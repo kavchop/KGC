@@ -90,8 +90,7 @@ def print_final_results(rank_mean_h, rank_mean_t, n, eval_mode, rel_hits_h=None,
 # now follows main method for validation/evaluation: run_evaluation()
 
 def run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map, 
-                   score_func, l1_flag=True,
-                   test_size=None, eval_mode=False, filtered=False, verbose=False): 
+                   score_func, test_size=None, eval_mode=False, filtered=False, verbose=False): 
 
     # for faster test runs allow validation on smaller (random) subset of test_matrix by specifiying a test_size for the set 
     np.random.seed(seed = 20) 
@@ -159,7 +158,8 @@ def run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map,
 
         # create the label vector from the embedding and calculate the correct score
 	#label = np.repeat(np.reshape(rel_array_map[test_matrix[i,1]], (1,dim)), n, axis=0)
-        correct_score = input.score_func(ent_array_map[test_matrix[i,0]], rel_array_map[test_matrix[i,1]], ent_array_map[test_matrix[i,2]], l1_flag)
+        # correct_score = input.score_func(ent_array_map[test_matrix[i,0]], rel_array_map[test_matrix[i,1]], ent_array_map[test_matrix[i,2]], l1_flag)
+	correct_score = 0
 
         # iteration over head (fixed tail):
         test_triple_h = np.reshape(test_matrix[i,1:3], (1,2))                     # (l, t)

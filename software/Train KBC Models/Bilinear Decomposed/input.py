@@ -1,12 +1,10 @@
 import numpy as np
-import tensorflow as tf
-from datetime import datetime
-import timeit 
 import pickle 
+from math import sqrt
+import timeit
+from datetime import datetime
 import os
-import zipfile 
-import params
-
+import zipfile
 
 
 ###################
@@ -21,14 +19,14 @@ def parse_triple_store(triples):
     e2 = triples[:,2]   #object 
     rel = triples[:,1]  #predicate
     ent_int_to_URI = list(set(e1).union(set(e2)))
-    rel_int_to_URI = list(set(rel))
+    rel_int_to_URI = list(set(rel)) 
     return ent_int_to_URI, rel_int_to_URI
 
 #only URI-to-int dicts are saved to disk
 #int_to_URI dicts are needed to create the former
 def create_URI_to_int(ent_int_to_URI, rel_int_to_URI):
     ent_URI_to_int = {ent_int_to_URI[i]: i for i in range(len(ent_int_to_URI))}    
-    rel_URI_to_int = {rel_int_to_URI[i]: i for i in range(len(rel_int_to_URI))}      
+    rel_URI_to_int = {rel_int_to_URI[i]: i for i in range(len(rel_int_to_URI))}
     return ent_URI_to_int, rel_URI_to_int
 
 #method for preprocessing triple files such that columns are swapped to format sub-pred-obj
@@ -37,63 +35,37 @@ def swap_cols(arr, frm, to):
 
 #create integer matrix from triple-store usings dicts
 def create_matrix(triples, ent_URI_to_int, rel_URI_to_int): 
-    int_matrix =  np.asarray([[ent_URI_to_int[triples[i,0]], rel_URI_to_int[triples[i,1]], ent_URI_to_int[triples[i,2]]] for i in range(len(triples))])
+    int_matrix =  np.asarray([[ent_URI_to_int[triples[i,0]], rel_URI_to_int[triples[i,1]], ent_URI_to_int[triples[i,2]]] for i in range(len(triples))], dtype=np.int32)
     return int_matrix
 
-#create vector files using int matrix and entity-to-vector map
-def create_triple_array_batches(matrix_batch, W, M=None, corrupt=False):
-    h_batch =  np.asarray([W[matrix_batch[i,0],:] for i in range(len(matrix_batch))])
-    t_batch =  np.asarray([W[matrix_batch[i,2],:] for i in range(len(matrix_batch))])
+
+
+def create_triple_array_batches(matrix_batch, ent_array_map, rel_array_map, corrupt=False):
+    h_batch =  np.asarray([ent_array_map[matrix_batch[i,0]] for i in range(len(matrix_batch))])
+    t_batch =  np.asarray([ent_array_map[matrix_batch[i,2]] for i in range(len(matrix_batch))])
+
     if corrupt: 
         return h_batch, t_batch
-    l_batch =  np.asarray([M[matrix_batch[i,1]] for i in range(len(matrix_batch))])
+    l_batch =  np.asarray([rel_array_map[matrix_batch[i,1]] for i in range(len(matrix_batch))])
     return h_batch, l_batch, t_batch
 
 
-#create map of triple batches by relation 
-#during training iteration over such map to process the corresponding Mr for every mini-batch 
-def create_triples_map_by_rel(int_matrix, m):
-    triples_map = [np.reshape(np.array([], dtype=np.int32), (0,3)) for i in range(m)]
-
-    for i in range(len(int_matrix)): 
-        new_record =  np.reshape(int_matrix[i], (1,3))
-        triples_map[int_matrix[i,1]]= np.append(triples_map[int_matrix[i,1]], new_record, axis=0)  
-    return triples_map
-
-
-# creates corrupted int matrix given positive training matrix 
-def create_corrupt_matrix(triples_set, corrupt_two, matrix_batch, n, check_collision): 
-    if corrupt_two: 
-        corrupt_batch_head = corrupt_triple_matrix(triples_set, corrupt_two, matrix_batch, n, check_collision, corrupt_head=True)
-        corrupt_batch_tail = corrupt_triple_matrix(triples_set, corrupt_two, matrix_batch, n, check_collision, corrupt_head=False)
-        corrupt_batch = np.append(corrupt_batch_head , corrupt_batch_tail , axis=0)
-        return corrupt_batch
-    else: 
-        return corrupt_triple_matrix(triples_set, corrupt_two, matrix_batch, n, check_collision)
-
-
-#corrupt randomly head of positive matrix or return matrix where only head or tail is corrupted
-def corrupt_triple_matrix(triples_set, corrupt_two, matrix_batch, n, check_collision, corrupt_head=None): 
-    if corrupt_head:
-        cor_ind = 0  #corruption index: head
-    else: 
-        cor_ind = 2  # tail
-        
+def corrupt_triple_matrix(triples_set, matrix_batch, n, check_collision=True): 
     corrupt_batch = np.copy(matrix_batch) 
     if check_collision: 
         for i in range(len(corrupt_batch)):
             while tuple(corrupt_batch[i]) in triples_set:
                 a = np.random.randint(n)  #n is number of all unique entities 
-                if not corrupt_two:       #if random corruption  
-                    cor_ind =  np.random.choice((0,2))
+                cor_ind = np.random.choice((0,2))  #randomly select index to corrupt (head or tail)
                 corrupt_batch[i][cor_ind]= a
     else: 
         for i in range(len(corrupt_batch)):
             a = np.random.randint(n)  #n is number of all unique entities 
-            if not corrupt_two: 
-                cor_ind =  np.random.choice((0,2))
+            cor_ind = np.random.choice((0,2))
             corrupt_batch[i][cor_ind]= a
     return corrupt_batch
+
+
 
 #load train, test and validation file, preprocess (swap columns if need be) and output
 #all triple stores as numpy matrices of URIs
@@ -118,6 +90,8 @@ def load_data(dataset, swap=False):
     triples = np.concatenate((train_triples, test_triples, valid_triples), axis=0)
     return triples, train_triples, valid_triples, test_triples
 
+
+#create URI_to_int dicts for entitiy and relations 
 def create_dicts(dataset, triples):
     #set working directory to current directory and based on this set all required PATHS
     os.chdir(os.getcwd())
@@ -157,76 +131,64 @@ def pickle_object(FILE_NAME, mode, object_=None):
         file.close()
         return object_
         
-#normalize n x n_red matrix row-wise
-def normalize_W(W):
-    return np.array([W[i]/np.linalg.norm(W[i]) for i in range(len(W))])
+def numpy_norm(x, l1_flag=True):
+    if l1_flag:
+        return np.linalg.norm((x), ord=1)
+    else: 
+        return np.linalg.norm(x)
 
-#initialize model parameters W and Mr
-def init_params(n, m, n_red, a): 
-    W = np.random.rand(n,1,n_red)
-    #normalize entitiy matrix
-    W = normalize_W(W)
-    A = np.random.rand(m, n_red, a)
-    B = np.random.rand(m, n_red, a)
-    return W, A, B
+def normalize_embedding(x, l1_flag=True):
+    l1_flag=False	
+    return np.array([x[i]/numpy_norm(x[i], l1_flag) for i in range(len(x))])
 
+def normalize_vec(x, l1_flag=True):
+    l1_flag=False
+    return x/numpy_norm(x, l1_flag)
 
-# diagonal matrix as 1 hot map for initial entity embedding of dim=n 
-def create_1_hot_maps(n): 
-    return np.eye(n)
+#computes the distance score of a triple batch: x=(h+l-t)
+#used in validation part 
+def score_func(h, l, t, l1_flag=True):
+    return -1 * numpy_norm(h+l-t, l1_flag)
 
-def score_func(h, l, t):
-    scores = []
-    for i in range(len(h)): 
-        scores.append( np.dot(np.dot(h[i],l), (np.transpose(t[i]))) )
-    return np.array(scores)
+def init_params(n,m, dim):
+    l1_flag = False
+    ent_array_map = np.random.uniform(-6/sqrt(dim),6/sqrt(dim), (n, dim))
+    rel_array_map = np.random.uniform(-6/sqrt(dim),6/sqrt(dim), (m, dim))
 
-'''
-#create matrix for learned entity embedding of dim=n_red: y = x*W where x is 1-hot vector 
-def learned_ent_embed(ent_array_map, W_param):
-    entity_embed = np.array([np.dot(ent_array_map[i], W_param) for i in range(len(ent_array_map))])
-    return entity_embed
-'''
-
-def adapt_params_for_eval(W_param, A_param, B_param):
-    m = len(A_param)
-    W_eval_param =  np.reshape(W_param, (W_param.shape[0], W_param.shape[2]))
-    Mr_eval_param = np.array([np.dot(A_param[i], np.transpose(B_param[i])) for i in range(m)])
-    return W_eval_param, Mr_eval_param
-
+    ent_array_map = normalize_embedding(ent_array_map, l1_flag)
+    rel_array_map = normalize_embedding(rel_array_map, l1_flag)
+    return ent_array_map, rel_array_map
 
 def getPATHS(model_name, dim, dataset):
-    #set working directory to current directory and based on this set all required PATHS
-    os.chdir(os.getcwd())
-    PATH = '../../../data/Trained Models/'+model_name+'/' + dataset + '/dim = '+str(dim) +'/'
-    if not os.path.exists(PATH):
-        os.makedirs(PATH)
+        #set working directory to current directory and based on this set all required PATHS
+        os.chdir(os.getcwd())
+	PATH = '../../../data/Trained Models/'+model_name+'/' + dataset + '/dim = '+str(dim) +'/'
+	if not os.path.exists(PATH):
+	    os.makedirs(PATH)
 
-    PLOT_PATH = '../../../data/Model Validation Results for Plotting/' + dataset + '/dim = '+str(dim) +'/'
-    if not os.path.exists(PLOT_PATH):
-        os.makedirs(PLOT_PATH)
+	PLOT_PATH = '../../../data/Model Validation Results for Plotting/' + dataset + '/dim = '+str(dim) +'/'
+	if not os.path.exists(PLOT_PATH):
+	    os.makedirs(PLOT_PATH)
 
-    MODEL_META_PATH = PATH + model_name + '_model_meta.txt'
-    INITIAL_MODEL = PATH + model_name + '_initial_model'
-    MODEL_PATH = PATH + model_name + '_model'
-    RESULTS_PATH = PATH + model_name + '_results'
+	MODEL_META_PATH = PATH + model_name + '_model_meta.txt'
+	INITIAL_MODEL = PATH + model_name + '_initial_model'
+	MODEL_PATH = PATH + model_name + '_model'
+	RESULTS_PATH = PATH + model_name + '_results'
 
-    PLOT_RESULTS_PATH = PLOT_PATH + model_name + '_results'
-    PLOT_MODEL_META_PATH = PLOT_PATH + model_name + '_model_meta.txt'
-    return [PATH, MODEL_META_PATH, INITIAL_MODEL, MODEL_PATH, RESULTS_PATH], [PLOT_RESULTS_PATH, PLOT_MODEL_META_PATH]
+	PLOT_RESULTS_PATH = PLOT_PATH + model_name + '_results'
+	PLOT_MODEL_META_PATH = PLOT_PATH + model_name + '_model_meta.txt'
+        return [PATH, MODEL_META_PATH, INITIAL_MODEL, MODEL_PATH, RESULTS_PATH], [PLOT_RESULTS_PATH, PLOT_MODEL_META_PATH]
 
 #method writes model configurations to disk 
-def save_model_meta(model_name, MODEL_META_PATH, PLOT_MODEL_META_PATH, n_red, a, learning_rate, corrupt_two, normalize_ent, check_collision, global_epoch=None, resumed=False):
-    if resumed==False:
+def save_model_meta(model_name, MODEL_META_PATH, PLOT_MODEL_META_PATH, dim, learning_rate, normalize_ent, check_collision, global_epoch=None, resumed=False):
+    if resumed==False: 
 	    text_file = open(MODEL_META_PATH, "w")
 	    text_file.write("\nmodel: {}\n\n".format(model_name))
 
 	    text_file.write("created on: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S')))
-	    text_file.write("factorization rank (dim.):  {}\n".format(n_red))
-            text_file.write("decomposition rank (a):  {}\n".format(a))
+	    text_file.write("embedding dimension:  {}\n".format(dim))
 	    text_file.write("learning rate:  {}\n".format(learning_rate))
-	    text_file.write("two corrupted per positive:  {}\n".format(corrupt_two))
-	    text_file.write("normalized entity matrix:  {}\n".format(normalize_ent))
+	    text_file.write("normalized entity vectors:  {}\n".format(normalize_ent))
 	    text_file.write("collision check:  {}\n".format(check_collision))
 	    text_file.close()
 

@@ -12,36 +12,39 @@ import os
 # In this class all model-specific data and methods are added
 # one model-specific state added in the constructor of this class is the tag 'diagonal' which denotes if the relation matrix Mr is a diagonal matrix
 
-class TransE(KBC_Class):
+class Bilinear(KBC_Class):
 
-    def __init__(self, dataset, swap, dim, margin, l1_flag, device, learning_rate, max_epoch, batch_size, test_size, result_log_cycle, shuffle_data=True, check_collision=True, normalize_ent=True):
-    
-        KBC_Class. __init__(self, dataset, swap, 'TransE', dim, margin, device, learning_rate, max_epoch, batch_size, test_size, result_log_cycle, shuffle_data=True, check_collision=True, normalize_ent=True)
+    def __init__(self, dataset, swap, dim, dim_hidden, margin, device, learning_rate, max_epoch, batch_size, test_size, result_log_cycle, shuffle_data=True, check_collision=True, normalize_ent=True):
+	self.dim_hidden = dim_hidden
 
-        self.l1_flag = l1_flag
+        KBC_Class. __init__(self, dataset, swap, 'Bilinear-Decomp', dim, margin, device, learning_rate, max_epoch, batch_size, test_size, result_log_cycle, shuffle_data=True, check_collision=True, normalize_ent=True)
 
 
   
     # numpy and tensorflow methods for computing the score of the model 
+    def np_score2(self, h, l, t):
+    	score = np.dot(np.dot(h,l), (np.transpose(t)))
+    	return score 
+
+
+    # score-function for triple batches with same label l: 
     def np_score(self, h, l, t):
-        if self.l1_flag:
-            return -1 * np.linalg.norm((x), ord=1, axis=1)
-        else: 
-            return -1 * np.linalg.norm(x, axis=1)
- 
-    def tf_score(self, h,l,t):
-	if self.l1_flag:
-        	return -1 *tf.reduce_sum(tf.abs(h+l-t), reduction_indices=1)
-        else: 
-        	return -1 *tf.sqrt(tf.reduce_sum(tf.square(h+l-t), reduction_indices=1))  # leave out sqrt for faster processing, since
+    	scores = []
+    	for i in range(len(h)): 
+        	scores.append( np.dot(np.dot(h[i],l), (np.transpose(t[i]))) )
+    	return np.array(scores)
+
+
+    def tf_score(self, h ,a, b, t):
+	return tf.batch_matmul(tf.batch_matmul(h,tf.batch_matmul(a, tf.transpose(b, perm=[0, 2, 1]))), tf.transpose(t, perm=[0, 2, 1]))
 
 
     #initialize model parameters W and Mr
-    def init_params(self, n,m):
-        ent_array_map = np.random.uniform(-6/sqrt(self.dim),6/sqrt(self.dim), (n, self.dim))
-        rel_array_map = np.random.uniform(-6/sqrt(self.dim),6/sqrt(self.dim), (m, self.dim))
-
-        return [ent_array_map, rel_array_map]
+    def init_params(self, n, m): 
+   	W = np.random.rand(n,1,self.dim)
+    	A = np.random.rand(m, self.dim, self.dim_hidden)
+    	B = np.random.rand(m, self.dim, self.dim_hidden)
+    	return W, A, B
 
 
     #method writes model configurations to disk - contains general and model-specific settings
@@ -52,6 +55,7 @@ class TransE(KBC_Class):
 
             text_file.write("created on: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S')))
             text_file.write("embedding dimension:  {}\n".format(self.dim))
+	    text_file.write("decomposition rank (a):  {}\n".format(self.dim_hidden))
             text_file.write("learning rate:  {}\n".format(self.learning_rate))
             text_file.write("normalized entity vectors:  {}\n".format(self.normalize_ent))
             text_file.write("collision check:  {}\n".format(self.check_collision))
@@ -65,40 +69,45 @@ class TransE(KBC_Class):
     def get_graph_variables(self, model): 
         # initialize model parameters (TF Variable) with numpy objects: entity matrix (n x dim) and relation matrix (m x dim)  
         E = tf.Variable(model[0], name='E')
-        R = tf.Variable(model[1], name='R')
-        return E, R
+	A = tf.Variable(model[1], name='A')
+        B = tf.Variable(model[2], name='B')
+        return E, A, B
 
 
     def normalize_entity_op(self, E):
-        norm = tf.sqrt(tf.reduce_sum(tf.square(E), 1, keep_dims=True))
+        norm = tf.sqrt(tf.reduce_sum(tf.square(E), 2, keep_dims=True))
         E_new = tf.div(E,norm)
 	E_norm = tf.assign(E, E_new)
         return E_norm
 
     # based on placeholders and learnable TF variables, apply matrix slicing on variables using gather: 
     # major advantage in this implementation under the score-based framework: plug in int vectors, no matter what the variable dimensions are
-    def get_model_parameters(self, E, R, h_ph, l_ph, t_ph, h_1_ph, t_1_ph): 
+    def get_model_parameters(self, E, A, B, h_ph, l_ph, t_ph, h_1_ph, t_1_ph): 
         h = tf.gather(E, h_ph) 
-        l = tf.gather(R, l_ph) 
+        a = tf.gather(A, l_ph) 
+	b = tf.gather(B, l_ph)
         t = tf.gather(E, t_ph) 
         h_1 = tf.gather(E, h_1_ph) 
         t_1 = tf.gather(E, t_1_ph) 
- 	return h, l, t, h_1, t_1
+ 	return h, a, b, t, h_1, t_1
 
 
-    def get_scores(self, h, l, t, h_1, t_1):
-	pos_score = self.tf_score(h, l, t)
-	neg_score = self.tf_score(h_1, l, t_1)
+    def get_scores(self, h, a, b, t, h_1, t_1):
+	pos_score = self.tf_score(h, a, b, t)
+	neg_score = self.tf_score(h_1, a, b, t_1)
 	return pos_score, neg_score
 
 
-    def adapt_params_for_eval(self, *args):
-    	return args
+    def adapt_params_for_eval(self, model):
+	W_param, A_param, B_param = model[0], model[1], model[2]
+    	m = len(A_param)
+    	W_eval_param =  np.reshape(W_param, (W_param.shape[0], W_param.shape[2]))
+   	Mr_eval_param = np.array([np.dot(A_param[i], np.transpose(B_param[i])) for i in range(m)])
+    	return W_eval_param, Mr_eval_param
 
 
     def eval_and_validate(self, triples_set, test_matrix, model, filtered = False, eval_mode = False):
-	#ent_array_map, rel_array_map = self.adapt_params_for_eval(model)
-	ent_array_map, rel_array_map = model[0], model[1]
+	ent_array_map, rel_array_map = self.adapt_params_for_eval(model)
 	if eval_mode: 
 		top_triples = eval.run_evaluation(triples_set, test_matrix, ent_array_map, rel_array_map, score_func=self.np_score, test_size=self.test_size, eval_mode=True, filtered=filtered, verbose=True)
 		return top_triples
@@ -156,12 +165,12 @@ class TransE(KBC_Class):
 	    '''
 	    with g.as_default(), g.device('/'+self.device+':0'), tf.Session() as sess: 
 
-		E, R = self.get_graph_variables(model)
+		E, A, B = self.get_graph_variables(model)
 
 		h_ph, l_ph, t_ph, h_1_ph, t_1_ph = self.get_graph_placeholders()
-		h, l, t, h_1, t_1 = self.get_model_parameters(E, R, h_ph, l_ph, t_ph, h_1_ph, t_1_ph)
+		h, a, b, t, h_1, t_1 = self.get_model_parameters(E, A, B, h_ph, l_ph, t_ph, h_1_ph, t_1_ph)
 
-		pos_score, neg_score = self.get_scores(h, l, t, h_1, t_1)
+		pos_score, neg_score = self.get_scores(h, a, b, t, h_1, t_1)
 	
 		loss = self.get_loss(pos_score, neg_score)
 	  
@@ -223,7 +232,7 @@ class TransE(KBC_Class):
 		    #if global_epoch == 1 or global_epoch == 10 or global_epoch%result_log_cycle == 0:
 		    if global_epoch % self.result_log_cycle == 0:
 		        # extract (numpy) parameters from updated TF variables 
-			model = [E.eval(), R.eval()]
+			model = [E.eval(), A.eval(), B.eval()]
 		        results_table, new_record = self.update_results_table(RESULTS_PATH, PLOT_RESULTS_PATH, triples_set, valid_matrix, model, global_epoch, loss_sum, results_table)
 		        # save model to disk only if both h_rank_mean and t_rank_mean improved 
 		        if min(results_table[1:len(results_table)-1,1]) >= new_record[0,1] and min(results_table[1:len(results_table)-1,2]) >= new_record[0,2]:
