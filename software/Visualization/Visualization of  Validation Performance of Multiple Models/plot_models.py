@@ -24,8 +24,8 @@ import os
 
 
 
-dim = 20
-dataset = 'freebase'
+dim = 10
+dataset = 'Freebase'
 
 PLOT_PATH = '../../../data/Model Validation Results for Plotting/' + dataset + '/dim = '+str(dim) +'/'
 #PLOT_RESULTS_PATH = PLOT_PATH + model_name + '_results'
@@ -36,7 +36,7 @@ def plot_one(models, merge, lr_change=None):
     try:
     	file = open(PLOT_PATH + model + '_results','r')
     except IOError:
-	print "\nOops: Your input '{}' does not exist in the 'models'-folder.\n".format(model)
+	print "\nOops: Your input '{}' does not exist in the 'Trained Models' - Directory.\n".format(model)
 	return
     results = pickle.load(file)    #list of tuples for pos_map and neg_map
     file.close()
@@ -84,7 +84,7 @@ def plot_many(models):
         try: 
         	file = open(PLOT_PATH + models[i] + '_results','r')
         except IOError:
-		print "\nOops: Your input '{}' does not exist in the 'models'-folder.\n".format(models[i])
+		print "\nOops: Your input '{}' does not exist in the 'Trained Models' Directory.\n".format(models[i])
 		return
 	 	
         results.append(pickle.load(file))    #list of tuples for pos_map and neg_map
@@ -147,16 +147,17 @@ def main(arg=None):
     
     merge = False 
     lr_change = None
-    model_list = ['bilinear', 'diagonal', 'transe']
-    normed_list = [model_list[i] + ' not normalized' for i in range(len(model_list))]
-    model_set = (set(model_list)).union(set(normed_list))
+    model_list = ['Bilinear', 'Diagonal', 'TransE', 'Bilinear Decomp']
+    #normed_list = [model_list[i] + ' not normalized' for i in range(len(model_list))]
+    #model_set = (set(model_list)).union(set(normed_list))
+    model_set = set(model_list) 
+    
 
     print "\n*****Plotting Knowledge Graph Completion Models*****\n"
     print "This is the set of models you can plot: \n"
-    print model_list 
-    print normed_list, '\n' 
+    print model_list, '\n' 
     print "Make sure the models you enter are in the 'models'-folder in the same directory.\nHere is a view of the content of the 'models'-folder: \n"
-    print os.listdir('./models'), '\n'
+    print os.listdir(PLOT_PATH), '\n'
     num= None
     while type(num) != int or num<1 or num>4:
         num_models = raw_input("Enter the number of models you want to plot [1 - 4]: ")
