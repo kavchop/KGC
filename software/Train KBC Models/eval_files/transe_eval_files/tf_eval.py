@@ -143,8 +143,8 @@ def run_evaluation(triples_set, test_matrix, model, score_func, test_size=None, 
     g = tf.Graph()
     config = tf.ConfigProto()
     config.gpu_options.per_process_gpu_memory_fraction = params.memory
-    with g.as_default(), g.device('/'+params.device+':0'), tf.Session(config=config) as sess:
-    #with g.as_default(), g.device('/'+'cpu'+':0'), tf.Session() as sess: 
+    with g.as_default(), g.device('/'+params.device), tf.Session(config=config) as sess:
+    #with g.as_default(), g.device('/'+params.device), tf.Session() as sess: 
 
 	E = tf.Variable(model[0], name='E')
         R = tf.Variable(model[1], name='R')

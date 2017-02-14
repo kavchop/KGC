@@ -198,10 +198,9 @@ class Bilinear(KBC_Class):
 	    # launch TF Session and build computation graph 
 	    # meta settings passed to the graph 
 	    g = tf.Graph()
-	    config = tf.ConfigProto()
 	    config.gpu_options.per_process_gpu_memory_fraction = self.memory
-	    with g.as_default(), g.device('/'+self.device+':0'), tf.Session(config=config) as sess:
-	    #with g.as_default(), g.device('/'+self.device+':0'), tf.Session() as sess: 
+	    with g.as_default(), g.device('/'+self.device), tf.Session(config=config) as sess:
+	    #with g.as_default(), g.device('/'+self.device), tf.Session() as sess: 
 
 		E, R = self.get_graph_variables(model)
 
@@ -275,7 +274,7 @@ class Bilinear(KBC_Class):
 		        results_table, new_record = self.update_results_table(RESULTS_PATH, PLOT_RESULTS_PATH, triples_set, valid_matrix, model, global_epoch, loss_sum, results_table)
 		        # save model to disk only if both h_rank_mean and t_rank_mean improved 
 			if len(results_table) > 3:
-		        	if min(np.array(results_table[1:len(results_table)-1,1], dtype=np.int32)) and min(np.array(results_table[1:len(results_table)-2,2], dtype=np.int32)):
+		        	if min(np.array(results_table[1:len(results_table)-1,1], dtype=np.int32)) >= new_record[0,1] and min(np.array(results_table[1:len(results_table)-1,2], dtype=np.int32)) >= new_record[0,2]:
 					self.save_model(MODEL_PATH, model)
 		        # print validation results and save results to disk (to two directories where it is accessible for other application, e.g. plotting etc)
 		        if global_epoch != self.max_epoch:
