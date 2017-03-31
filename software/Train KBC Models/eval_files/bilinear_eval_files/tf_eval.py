@@ -98,7 +98,7 @@ def run_evaluation(triples_set, test_matrix, model, score_func, test_size=None, 
         selected_indices = np.random.randint(len(test_matrix), size=test_size)
         test_matrix = test_matrix[selected_indices] 
     # if not specified, set test_size to total size of test_matrix 
-    if test_size == None: 
+    if test_size == None or test_size > len(test_matrix): 
     	test_size = len(test_matrix)  
 
     # number of entities
@@ -150,11 +150,11 @@ def run_evaluation(triples_set, test_matrix, model, score_func, test_size=None, 
         l = tf.gather(R, l_ph) 
         t = tf.gather(E, t_ph) 
  
-	score_op = tf.batch_matmul(tf.batch_matmul(h,l), tf.transpose(t, perm=[0, 2, 1]))
+	score_op = tf.matmul(tf.matmul(h,l), tf.transpose(t, perm=[0, 2, 1]))
 
 	#op for Variable initialization 
-	#init_op = tf.global_variables_initializer()
-	init_op = tf.initialize_all_variables()
+	init_op = tf.global_variables_initializer()
+	#init_op = tf.initialize_all_variables()
 	sess.run(init_op)
 
     	# iteration over all test triples

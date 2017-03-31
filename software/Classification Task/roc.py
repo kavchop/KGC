@@ -51,7 +51,7 @@ def calc_roc(score, y, num_thr):
 
 
 def plot_roc_curve(tpr, fpr, counts, rel_counts, sample_size, title = ' ', tpr1=None, fpr1=None):
-		plt.plot(tpr, fpr, color='darkgreen', linewidth=1.5, label='learned embedding')
+		plt.plot(tpr, fpr, color='b', linewidth=1.5, label='learned embedding')
 		if tpr1!=None: 
 			plt.plot(tpr1, fpr1, color='firebrick', linewidth=1.5,  label='initial embedding')
                 plt.ylim([-0.025,1.025])
@@ -101,10 +101,10 @@ def roc_analysis(score, y, counts, rel_counts, sample_size, title=' ', score_ini
         fpr, tpr, rec, prec = calc_roc(score, y, num_thr)
 	if score_init != None: 
 		fpr1, tpr1, rec1, prec1 = calc_roc(score_init, y_init, num_thr)
-		#plot_roc_curve(tpr, fpr, counts, rel_counts, sample_size, title =  title, tpr1=tpr1, fpr1=fpr1)
+		plot_roc_curve(tpr, fpr, counts, rel_counts, sample_size, title =  title, tpr1=tpr1, fpr1=fpr1)
                 plot_prec_rec_curve(rec, prec, counts, rel_counts, sample_size, title = title, rec1=rec1, prec1=prec1)
 	else:
-		#plot_roc_curve(tpr, fpr, counts, rel_counts, sample_size, title =  title)
+		plot_roc_curve(tpr, fpr, counts, rel_counts, sample_size, title =  title)
                 plot_prec_rec_curve(rec, prec, counts, rel_counts, sample_size, title =  title)
 
 

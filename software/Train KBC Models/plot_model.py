@@ -6,17 +6,16 @@ Script plots the validation results for the trained model in this directory from
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import params
 
 
-dim = 100
-a = 10 
+dim = 20
+a = 1 
 model_name = 'Decomposed'
 dataset = 'Freebase'
 
 
-if model_name = 'Decomposed': 
-	PATH = '../../data/Trained Models/'+model_name+'/' + dataset + '/dim = '+str(dim) +'/a=' + str(a) + '/' 
+if model_name == 'Decomposed': 
+	PATH = '../../data/Trained Models/'+model_name+'/' + dataset + '/dim = '+str(dim) +'/a = ' + str(a) + '/' 
 else: 
 	PATH = '../../data/Trained Models/'+model_name+'/' + dataset + '/dim = '+str(dim) +'/'
 	
@@ -40,7 +39,7 @@ def main(arg=None):
 
 	print '\n***** {} model *****\n'.format(model_name)
 	print results[0,0:3], '\n'
-        loss = results[2:len(results), -1]
+        loss = np.array(results[2:len(results), -1], dtype=np.int32)
 	results = np.array(results[1:len(results), 0:3], dtype=np.int32)
 	print results
 
@@ -67,6 +66,7 @@ def main(arg=None):
         plt.plot(epoch[1:len(epoch)], loss, color='b')
 	plt.title(model_name+' model - loss during training')
 	plt.show()
+	print "\nloss during training:\n"
         print loss
 
 

@@ -1,0 +1,12 @@
+Technical Specifications of Implementation
+
+The framework was developed based on Python on Ubuntu 16.04. 
+The latest code version has been rendered compatible to TensorFlow 1.0.1. 
+Other requirements, necessary for visualizations, for example, 
+are Matplotlib 1.5.1 and sklearn 0.18.1. 
+The machine on which training was conducted is equipped with an 
+Intel Core i3-4160 CPU with 3.60 Ghz. We conducted our experiments 
+on the CPU but training configurations of our code allow to run them 
+on GPU in case the GPU-enabled TensorFlow version is installed. 
+The code for the implemented framework including evaluation tasks and 
+visualizations is available under https://github.com/kavchop/KGC.

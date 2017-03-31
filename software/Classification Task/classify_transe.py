@@ -2,16 +2,18 @@
 import numpy as np
 import timeit
 import os
+import sys
 #from sortedcontainers import SortedDict
 import matplotlib.pyplot as plt
 import roc
-#from sklearn import metrics
+from sklearn import metrics
+sys.path.insert(0,'../')
 from KBC_Util_Class import KBC_Util_Class
 
 
 model_name = 'TransE'
 l1_flag= True
-dim = 10
+dim = 20
 
 dataset = 'Freebase'
 swap = True
@@ -97,7 +99,7 @@ def roc_in_time(KBC_Model, PATH, x, rel_list, triples_matrix, pos_matrix, neg_ma
         # load and unpack trained and initial model 
 
         MODEL_PATH = PATH + model_name + '_model_' + str(i)
-        #print MODEL_PATH
+        
         ent_array_map, rel_array_map = KBC_Model.load_model(MODEL_PATH)
 
         h_batch, l_batch, t_batch, h_1_batch, t_1_batch = get_batches(ent_array_map, rel_array_map, pos_matrix, neg_matrix)
@@ -117,6 +119,10 @@ def roc_in_time(KBC_Model, PATH, x, rel_list, triples_matrix, pos_matrix, neg_ma
 def main(arg=None):
 
     KBC_Model = KBC_Util_Class(dataset, swap, model_name, dim)
+
+    if not KBC_Model.data_exists(): 
+	return 
+
     PATH, MODEL_PATH, INITIAL_MODEL = KBC_Model.get_PATHS()
 
     test_size = 1000
@@ -138,8 +144,8 @@ def main(arg=None):
    
     # load and unpack trained and initial model 
 
-    ent_array_map, rel_array_map = KBC_Model.load_model(MODEL_PATH) 
-    ent_init_array_map, rel_init_array_map = KBC_Model.load_model(INITIAL_MODEL) 
+    ent_array_map, rel_array_map = KBC_Model.load_model(MODEL_PATH)  
+    ent_init_array_map, rel_init_array_map = KBC_Model.load_model(INITIAL_MODEL)
 
     ent_list, rel_list = KBC_Model.get_int_to_URI()
     n = len(ent_list)
@@ -274,7 +280,7 @@ def main(arg=None):
 	    rel_counts = round(float(counts)/len(triples_matrix), 4)*100
 	    
             #to show graph 
-	    roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x], score_init=score_init, y_init=y_init, reverse=False)
+	    #roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x], score_init=score_init, y_init=y_init, reverse=False)
 
 	    #score = [1/score[i] for i in range(len(score))]
 	    #score = [-score[i] for i in range(len(score))]
@@ -286,8 +292,8 @@ def main(arg=None):
 	    #y = np.array([1, 1, 2, 2])
 
 	    # calculate auc (area under the roc-curve) 
-	    #fpr, tpr, thresholds = metrics.roc_curve(y, score) #, pos_label=1)
-	    #auc_list.append(metrics.auc(fpr, tpr))
+	    fpr, tpr, thresholds = metrics.roc_curve(y, score) #, pos_label=1)
+	    auc_list.append(metrics.auc(fpr, tpr))
             counts_list.append(counts)
             '''
             print rel_list[x]

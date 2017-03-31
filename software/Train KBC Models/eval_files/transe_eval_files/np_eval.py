@@ -95,7 +95,7 @@ def run_evaluation(triples_set, test_matrix, model, score_func, test_size=None, 
         selected_indices = np.random.randint(len(test_matrix), size=test_size)
         test_matrix = test_matrix[selected_indices] 
     # if not specified, set test_size to total size of test_matrix 
-    if test_size == None: 
+    if test_size == None or test_size > len(test_matrix): 
 	test_size = len(test_matrix)  
 
     # number of entities

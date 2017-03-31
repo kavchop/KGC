@@ -109,7 +109,9 @@ class KBC_Class:
     #all triple stores as numpy matrices of URIs
     def load_data(self): 
         DATA_SET_PATH = self.DATA_PATH + 'Triple Store/' + self.dataset + '/'
-
+        if not os.path.isfile(DATA_SET_PATH + self.dataset + '.zip'): 
+	    print "\nThe specified dataset '{}' does not exist. Please add the dataset (Training, Validation and Test set) in the specified dataset directory before training with it.\n".format(self.dataset)
+	    return 
         #if any of the triple files is missing unpack data.zip
         if not os.path.isfile(DATA_SET_PATH +'train.txt') or not os.path.isfile(DATA_SET_PATH +'test.txt') or not os.path.isfile(DATA_SET_PATH +'valid.txt'): 
             zip_ref = zipfile.ZipFile(DATA_SET_PATH + self.dataset + '.zip', 'r')
@@ -196,6 +198,7 @@ class KBC_Class:
 
     def model_intro_print(self, train_matrix):
 	print "\n****************Training of {} starts!****************\n".format(self.model_name)
+	print "Knowledge Base: {}".format(self.dataset)
         print "Number of Triples in Training data: {}".format(len(train_matrix))
         print "Latent Embedding Dimension: {}".format(self.dim)
 
@@ -216,7 +219,7 @@ class KBC_Class:
 
 
     def get_loss(self, pos_score, neg_score): 
-	return tf.reduce_sum(tf.maximum(tf.sub(neg_score, pos_score)+self.margin, 0))
+	return tf.reduce_sum(tf.maximum(tf.subtract(neg_score, pos_score)+self.margin, 0))
 
 
     # methods which will be overwritten by the inheriting Model-Class 
@@ -247,7 +250,7 @@ class KBC_Class:
     def get_trainer(self, loss):
  	# building training:
         # Stochastic Gradient Descent (SGD) with Adagrad for adaptive learning-rates 
-        trainer = tf.train.AdagradOptimizer(self.learning_rate).minimize(loss)
+        #trainer = tf.train.AdagradOptimizer(self.learning_rate).minimize(loss)
         # alternatively:
-	trainer = tf.train.AdagradOptimizer(self.learning_rate).minimize(loss)
+	trainer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(loss)
 	return trainer

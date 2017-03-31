@@ -46,12 +46,12 @@ def select_KBC_model(model_tags):
 		
 	if model=='bilinear': 
 		from Bilinear import Bilinear
-		KBC_Model = Bilinear(params.dataset, params.swap, params.dim, params.margin, params.device, params.memory, params.learning_rate, params.max_epoch, params.batch_size, params.test_size, params.result_log_cycle, diagonal=bi_diagonal, eval_with_np=params.eval_with_np, shuffle_data=params.shuffle_data, check_collision=params.check_collision, normalize_ent=params.normalize_ent)
+		KBC_Model = Bilinear(params.dataset, params.swap, params.dim, params.margin, params.device, params.memory, params.learning_rate, params.max_epoch, params.batch_size, params.test_size, params.result_log_cycle, diagonal=bi_diagonal, eval_with_np=params.eval_with_np, shuffle_data=params.shuffle_data, check_collision=params.check_collision, normalize_ent=params.normalize_ent, dropout=params.dropout)
 		return KBC_Model
 
  	if model=='decomposed': 
 		from Bilinear_Decomp import Bilinear_Decomp
-	    	KBC_Model = Bilinear_Decomp(params.dataset, params.swap, params.dim, params.dim_hidden, params.margin, params.device, params.memory,  params.learning_rate, params.max_epoch, params.batch_size, params.test_size, params.result_log_cycle, eval_with_np=params.eval_with_np,  shuffle_data=params.shuffle_data, check_collision=params.check_collision, normalize_ent=params.normalize_ent)
+	    	KBC_Model = Bilinear_Decomp(params.dataset, params.swap, params.dim, params.dim_hidden, params.margin, params.device, params.memory,  params.learning_rate, params.max_epoch, params.batch_size, params.test_size, params.result_log_cycle, eval_with_np=params.eval_with_np,  shuffle_data=params.shuffle_data, check_collision=params.check_collision, normalize_ent=params.normalize_ent, dropout=params.dropout)
 		return KBC_Model
 
 

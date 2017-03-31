@@ -1,3 +1,39 @@
+'''
+
+Author of this implementation: Kavita Chopra (10.2016, version 1.0)
+
+References for Bilinear Model (RESCAL): 
+
+- "A three way model for collective learning on multi-relational data", 
+   Nickel et al., 2011
+  "Factorization of Yago" - Nickel et al., 2012
+Tensor Network Formulation of Rescal and Bilinear Diagonal Variant: 
+- "Embedding Entities and Relations for Learning and Inference in Knowledge Bases", 
+   B. Yang et al. (2014)
+
+
+Score Function: 
+- vector-matrix multiplication: Entities modeled as vectors of latent dimension k, Relations modeled as matrices of latent dimension k
+- f: ENT x REL x ENT -> R   (ENT, REL: Embedding Space of entities and relations, respectively)
+- f(s, p, o) = ys * Mr * yo 
+
+
+Model-specific parameters of Bilinear Model: 
+- dropout = {True, False}: randomly set entries of relation matrix to 0 to avoid overfitting (configured in params.py)
+- diagonal = {True, False}: relation matrix Mr restricted to be diagonal matrix, where off-diagonals are zero-entries (passed as command line arg when running the model: kbc_main.py bilinear diagonal)
+
+
+Decomposed Bilinear Model: 
+- Proposed to control the number of parameters of the relation matrix in bilinear classic: 
+- Relation-Matrix is decomposed into the matrix product of A and B where both are k x a matrices. With a < k/n we have less number of parameters than in the bilinear model. 
+- f: ENT x REL x ENT -> R   (ENT, REL: Embedding Space of entities and relations, respectively)
+- f(s, p, o) = ys * Ar * Br * yo 
+
+
+'''
+
+
+
 import numpy as np
 import tensorflow as tf
 from datetime import datetime
@@ -17,10 +53,11 @@ import np_eval1
 
 class Bilinear_Decomp(KBC_Class):
 
-    def __init__(self, dataset, swap, dim, dim_hidden, margin, device, memory, learning_rate, max_epoch, batch_size, test_size, result_log_cycle, eval_with_np=True, shuffle_data=True, check_collision=True, normalize_ent=True):
+    def __init__(self, dataset, swap, dim, dim_hidden, margin, device, memory, learning_rate, max_epoch, batch_size, test_size, result_log_cycle, eval_with_np=True, shuffle_data=True, check_collision=True, normalize_ent=True, dropout=False):
 	self.dim_hidden = dim_hidden
+	self.dropout = dropout
 
-        KBC_Class. __init__(self, dataset, swap, 'Bilinear Decomp', dim, margin, device, memory, learning_rate, max_epoch, batch_size, test_size, result_log_cycle, eval_with_np=True, shuffle_data=True, check_collision=True, normalize_ent=True)
+        KBC_Class. __init__(self, dataset, swap, 'Decomposed', dim, margin, device, memory, learning_rate, max_epoch, batch_size, test_size, result_log_cycle, eval_with_np=True, shuffle_data=True, check_collision=True, normalize_ent=True)
 
 
   
@@ -39,7 +76,7 @@ class Bilinear_Decomp(KBC_Class):
 
 
     def tf_score(self, h ,a, b, t):
-	return tf.batch_matmul(tf.batch_matmul(h,tf.batch_matmul(a, tf.transpose(b, perm=[0, 2, 1]))), tf.transpose(t, perm=[0, 2, 1]))
+	return tf.matmul(tf.matmul(h,tf.matmul(a, tf.transpose(b, perm=[0, 2, 1]))), tf.transpose(t, perm=[0, 2, 1]))
 
 
     # initialize model parameters W and Mr
@@ -74,18 +111,27 @@ class Bilinear_Decomp(KBC_Class):
     # method writes model configurations to disk - contains general and model-specific settings
     def save_model_meta(self, MODEL_META_PATH, PLOT_MODEL_META_PATH, global_epoch=None, resumed=False):
         if resumed==False: 
-            text_file = open(MODEL_META_PATH, "w")
-            text_file.write("\nmodel: {}\n\n".format(self.model_name))
+	    text_file = open(MODEL_META_PATH, "w")
+            text_file.write("\n******** model: {} ********\n\n\n".format(self.model_name))
+	    text_file.write("trained on: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S')))
+	    text_file.write("dataset: {}\n".format(self.dataset))
 
-            text_file.write("created on: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S')))
-            text_file.write("embedding dimension:  {}\n".format(self.dim))
-	    text_file.write("decomposition rank (a):  {}\n".format(self.dim_hidden))
-            text_file.write("learning rate:  {}\n".format(self.learning_rate))
-            text_file.write("normalized entity vectors:  {}\n".format(self.normalize_ent))
-            text_file.write("collision check:  {}\n".format(self.check_collision))
+	    text_file.write("\n*** general settings ***\n\n")
+            text_file.write("embedding dimension: {}\n".format(self.dim))
+            text_file.write("learning rate: {}\n".format(self.learning_rate))
+	    text_file.write("margin: {}\n".format(self.margin))
+            #text_file.write("normalize entity vectors:  {}\n".format(self.normalize_ent))
+            #text_file.write("collision check:  {}\n".format(self.check_collision))
+		
+	    text_file.write("\n*** model-specific settings ***\n\n")
+	    # add here model-specific settings
+	    text_file.write("decomposition rank (a): {}\n".format(self.dim_hidden))
+	    text_file.write("dropout on relation embedding: {}\n".format(self.dropout))
+
             text_file.close()
+
         if resumed==True: 
-            new_lines = "\ntraining resumed on {}\nat epoch: {}\nwith learning rate: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S'), global_epoch, self.learning_rate)
+            new_lines = "\n\n*** training resumed on {} ***\nat epoch: {}\nwith learning rate: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S'), global_epoch, self.learning_rate)
             with open(MODEL_META_PATH, "a") as f:
                 f.write(new_lines)
 
@@ -108,8 +154,12 @@ class Bilinear_Decomp(KBC_Class):
     # major advantage in this implementation under the score-based framework: plug in int vectors, no matter what the variable dimensions are
     def get_model_parameters(self, E, A, B, h_ph, l_ph, t_ph, h_1_ph, t_1_ph): 
         h = tf.gather(E, h_ph) 
-        a = tf.gather(A, l_ph) 
-	b = tf.gather(B, l_ph)
+	if self.dropout:
+		a = tf.nn.dropout(tf.gather(A, l_ph), 0.5) 
+		b = tf.nn.dropout(tf.gather(B, l_ph), 0.5) 
+	else:  
+        	a = tf.gather(A, l_ph) 
+		b = tf.gather(B, l_ph)
         t = tf.gather(E, t_ph) 
         h_1 = tf.gather(E, h_1_ph) 
         t_1 = tf.gather(E, t_1_ph) 
@@ -129,15 +179,6 @@ class Bilinear_Decomp(KBC_Class):
 	if self.eval_with_np: 
 		W_eval_param =  np.reshape(W_param, (W_param.shape[0], W_param.shape[2]))
     	return [W_eval_param, Mr_eval_param]
-
-
-    def eval_and_validate2(self, triples_set, test_matrix, model, filtered = False, eval_mode = False):
-	model = self.adapt_params_for_eval(model)
-	if eval_mode: 
-		top_triples = eval.run_evaluation(triples_set, test_matrix, model, score_func=self.np_score, test_size=self.test_size, eval_mode=True, filtered=filtered, verbose=True)
-		return top_triples
-	record = eval.run_evaluation(triples_set, test_matrix, model, score_func=self.np_score, test_size=self.test_size, filtered=filtered)
-	return record
 
 
     def eval_and_validate(self, triples_set, test_matrix, model, filtered = False, eval_mode = False):
@@ -219,8 +260,8 @@ class Bilinear_Decomp(KBC_Class):
 		self.model_intro_print(train_matrix)
 	
 		#op for Variable initialization 
-		#init_op = tf.global_variables_initializer()
-	 	init_op = tf.initialize_all_variables()
+		init_op = tf.global_variables_initializer()
+	 	#init_op = tf.initialize_all_variables()
 		sess.run(init_op)
 	  
 		#vector X_id mirrors indices of train_matrix to allow inexpensive shuffling before each epoch
@@ -265,9 +306,9 @@ class Bilinear_Decomp(KBC_Class):
 		    stop = timeit.default_timer()
 		    print "time taken for current epoch: {} sec".format((stop - start))
 		    global_epoch += 1
-		    if global_epoch > 500:
+		    if global_epoch > 450:
 				self.test_size = None
-				self.result_log_cycle = 25
+				self.result_log_cycle = 10
 
 		    #validate model on valid_matrix and save current model after each result_log_cycle
 		    #if global_epoch == 1 or global_epoch == 10 or global_epoch%result_log_cycle == 0:

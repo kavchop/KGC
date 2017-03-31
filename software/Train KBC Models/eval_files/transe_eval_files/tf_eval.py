@@ -106,7 +106,7 @@ def run_evaluation(triples_set, test_matrix, model, score_func, test_size=None, 
         selected_indices = np.random.randint(len(test_matrix), size=test_size)
         test_matrix = test_matrix[selected_indices] 
     # if not specified, set test_size to total size of test_matrix 
-    if test_size == None: 
+    if test_size == None or test_size > len(test_matrix): 
     	test_size = len(test_matrix)  
 
     # number of entities
@@ -161,8 +161,8 @@ def run_evaluation(triples_set, test_matrix, model, score_func, test_size=None, 
 	score_op = score_func(h, l, t)
 
 	#op for Variable initialization 
-	#init_op = tf.global_variables_initializer()
-	init_op = tf.initialize_all_variables()
+	init_op = tf.global_variables_initializer()
+	#init_op = tf.initialize_all_variables()
 	sess.run(init_op)
 
     	# iteration over all test triples
@@ -171,7 +171,6 @@ def run_evaluation(triples_set, test_matrix, model, score_func, test_size=None, 
 		# for filtered results, compute and rank the scores only for triples which are truly false, that is, they are not contained in the entire triple set; based on this information determine the list of entities to test against:  
 		if filtered:
 		    n = len(ent_array_map)
-		    set_h = set(np.arange(0,n))
 		    set_t = set(np.arange(0,n))
 		    for j in range(n):
 		        temp =  [j, test_matrix[i,1], test_matrix[i,2]]

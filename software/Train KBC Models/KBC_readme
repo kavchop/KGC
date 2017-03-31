@@ -1,0 +1,81 @@
+
+MASTER THESIS: EVALUATION OF CHARACTERISTCS OF KNOWLEDGE BASE COMPLETION MODELS (10.2016)
+STUDENT NAME: KAVTIA CHOPRA 
+
+
+KNOWLEDGE BASE COMPLETION (KBC) MODELS: 
+
+This framework implements a number of score-based Knowledge Base Completion Models (KBC) which aim to learn vector embeddings of entities and relations of any Knowledge Base (KB) in the triple form (subject predicate object). 
+Each model has a score-function f: ENT x REL x ENT -> R which maps the embeddings of a triple to a real value (score). 
+A score-based KBC-Model takes as input a Knowledge Base, hyperparameters and a model-specific score-function which decides upon the dimensions of the entity and relation embeddings. 
+The KGC Model initializes the embeddings randomly and when the training loop is entered, for every triple (s p o) from the KB a false triple (s' p o') is corrupted where either subject or object, but not both at the same time are corrupted on the fly. 
+The embeddings are then learned such that a specified margin (hyperparameter) between the score of the positive triple and the score of the negative triple is enforced.
+The optimization procedure is realized through Stochastic Gradient Descent which processes mini-batches rather than the whole training set at once for updating the embeddings at each gradient step. Learned Embeddings have the advantage that they help infer semantic insights, e.g. detect false facts, and find missing facts in the KB. 
+
+
+
+INPUT: 
+
+- Knowledge Base (can be added in the directory data/Triple Store/'New KB'/) as a compressed zip file of train.txt, test.txt, and valid.txt, where all the three files should have disjoint lists of triples (subject-uri  predicate-uri  object-uri). 
+- general hyperparameters and model-specific parameters are all set in the params.py file in the same directory 
+
+
+
+Validation and Evaluation Protocol
+
+- Requires currently learned embeddings of entities and relations and validation set ( analog. test set) of triples not seen during training
+- for each test triple we fix s and p and iterate over all entities for the object. For every triple we compute the score and report the following three rank measures for the score of the true triple: 
+- for validation the mean rank (Mean Average Precision, MAP) of correct triples from a list of corrupted triples are reported (MAP needs to be minimized)
+- evaluation on test data after training is complete to measure the quality of the final model 
+- for evaluation 'hits at ten' (proportion of true test triples in top ten ranks) are reported (to be maximized)
+- Besides, the Mean Reciprocal Rank (MRR) is reported: while MAP is not normalized, MRR is normalized between 0 and 1 and needs to be maximized
+
+
+
+OUTPUT: 
+
+- MAIN GOAL: Learned Embeddings for Entities and Relations of a Knowledge Graph 
+- Other: 
+ - Results table from validation runs during training 
+ - For visualization purposes the initial emebeddings for entity and relations are saved before every training session
+- Directory for all model files: data/Trained Models/'model_name'/'dataset'/'dim'
+
+
+
+TO RUN TRAINING, TYPE: 
+
+for TransE: "Translating Embeddings for Modeling Multi-relational Data", (A. Bordes et al.), 2013
+	python kbc_main.py transe 
+
+for Bilinear (RESCAL): "A three way model for collective learning on multi-relational data", Nickel et al., 2011, "Factorization of Yago" - Nickel et al., 2012
+	python kbc_main.py bilinear 
+
+for Bilinear Diagonal: "Embedding Entities and Relations for Learning and Inference in Knowledge Bases", 
+   B. Yang et al. (2014)
+	python kbc_main.py bilinear diagonal 
+
+for Bilinear Decomposed: 
+	python kbc_main.py bilinear decomp
+
+
+
+TO EVALUATE AFTER TRAINING, TYPE 
+
+for evaluation add to the above [model line]:
+	[model line] evaluate [filtered]
+
+- the optional 'filtered' tag specifies whether the ranking of the score of the true triple takes into account only corrupted triples (= filtered, usually gives better results) which are truly false or all corrupted triples, disregarding the possibility that some of the randomly performed corruptions may lead to true triples.
+
+
+
+PLOT MODEL: 
+	python plot_model.py (specify dataset, dim and model_name inside script)
+
+
+
+Implementation Remarks
+- before training a new model:
+    - meta-data-file with the customized configurations is created and saved in 'models/' directory
+    - meta-data-file is updated each time training is resumed at a different time 
+    - initial embedding is saved to disk for visualization purposes e.g. after dimensionality reduction through PCA
+- at customizable intervals current model is saved to disk so that training may be continued in different sessions

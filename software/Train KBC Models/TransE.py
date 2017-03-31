@@ -1,3 +1,24 @@
+'''
+
+Author of this implementation: Kavita Chopra (10.2016, version 1.0)
+
+
+References:
+- Translating Embeddings for Modeling Multi-relational Data
+  (A. Bordes et al.), 2013
+
+
+Score Function: 
+- vector-matrix multiplication: Entities modeled as vectors of latent dimension k, Relations modeled as matrices of latent dimension k
+- f: ENT x REL x ENT -> R   (ENT, REL: Embedding Space of entities and relaitons, respectively)
+- f(s, p, o) = - dist(s+l, t)   (dist: distance measure l1 or l2)
+
+
+Model-specific parameters of Bilinear Model: 
+- distance measure: l1 or l2
+
+'''
+
 import numpy as np
 import tensorflow as tf
 from datetime import datetime
@@ -11,7 +32,7 @@ import np_eval
 import tf_eval
 
 
-# Class Bilinear inherits from KBC_Class
+# Class TransE inherits from KBC_Class
 # In this class all model-specific data and methods are added
 # one model-specific state added in the constructor of this class is the tag 'diagonal' which denotes if the relation matrix Mr is a diagonal matrix
 
@@ -54,20 +75,21 @@ class TransE(KBC_Class):
             text_file = open(MODEL_META_PATH, "w")
             text_file.write("\n******** model: {} ********\n\n\n".format(self.model_name))
 	    text_file.write("trained on: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S')))
-	    text_file.write("dataset:  {}\n".format(self.dataset))
+	    text_file.write("dataset: {}\n".format(self.dataset))
 
 	    text_file.write("\n*** general settings ***\n\n")
-            text_file.write("embedding dimension:  {}\n".format(self.dim))
-            text_file.write("learning rate:  {}\n".format(self.learning_rate))
-            text_file.write("normalize entity vectors:  {}\n".format(self.normalize_ent))
-            text_file.write("collision check:  {}\n".format(self.check_collision))
+            text_file.write("embedding dimension: {}\n".format(self.dim))
+            text_file.write("learning rate: {}\n".format(self.learning_rate))
+            text_file.write("margin: {}\n".format(self.margin))
+            #text_file.write("normalize entity vectors:  {}\n".format(self.normalize_ent))
+            #text_file.write("collision check:  {}\n".format(self.check_collision))
 		
 	    text_file.write("\n*** model-specific settings ***\n\n")
-            text_file.write("distance measure is L1 (else L2):  {}\n".format(self.l1_flag))
+            text_file.write("distance measure is L1 (else L2): {}\n".format(self.l1_flag))
 
             text_file.close()
         if resumed==True: 
-            new_lines = "\ntraining resumed on {}\nat epoch: {}\nwith learning rate: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S'), global_epoch, self.learning_rate)
+            new_lines = "\n\n*** training resumed on {} ***\nat epoch: {}\nwith learning rate: {}\n".format(datetime.now().strftime('%d-%m-%Y %H:%M:%S'), global_epoch, self.learning_rate)
             with open(MODEL_META_PATH, "a") as f:
                 f.write(new_lines)
 
@@ -194,12 +216,13 @@ class TransE(KBC_Class):
 		self.model_intro_print(train_matrix)
 	
 		#op for Variable initialization 
-		#init_op = tf.global_variables_initializer()
-	 	init_op = tf.initialize_all_variables()
+		init_op = tf.global_variables_initializer()
+	 	#init_op = tf.initialize_all_variables()
 		sess.run(init_op)
 	  
 		#vector X_id mirrors indices of train_matrix to allow inexpensive shuffling before each epoch
 		X_id = np.arange(len(train_matrix))
+
 		for i in range(self.max_epoch):
 		    print "\nepoch: {}".format(global_epoch)
 		    if self.shuffle_data: 
@@ -239,10 +262,9 @@ class TransE(KBC_Class):
 		    stop = timeit.default_timer()
 		    print "time taken for current epoch: {} sec".format((stop - start))
 		    global_epoch += 1
-		    if global_epoch > 500:
-				#self.test_size = len(valid_matrix)-2
+		    if global_epoch > 450:
 				self.test_size = None
-				self.result_log_cycle = 25
+				self.result_log_cycle = 10
 
 		    #validate model on valid_matrix and save current model after each result_log_cycle
 		    #if global_epoch == 1 or global_epoch == 10 or global_epoch%result_log_cycle == 0:

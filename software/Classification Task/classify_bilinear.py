@@ -2,14 +2,16 @@
 import numpy as np
 import timeit
 import os
+import sys
 #from sortedcontainers import SortedDict
 import matplotlib.pyplot as plt
 import roc
-#from sklearn import metrics
+from sklearn import metrics
+sys.path.insert(0,'../')
 from KBC_Util_Class import KBC_Util_Class
 
 
-model_name = 'Bilinear'
+model_name = 'Diagonal'
 dim = 20
 
 dataset = 'Freebase'
@@ -90,8 +92,20 @@ def roc_in_time(KBC_Model, PATH, x, rel_list, triples_matrix, pos_matrix, neg_ma
 
         MODEL_PATH = PATH + model_name + '_model_' + str(i)
         #print MODEL_PATH
-        ent_array_map, rel_array_map = KBC_Model.load_model(MODEL_PATH)
-
+        model = KBC_Model.load_model(MODEL_PATH) 
+    	ent_array_map, rel_array_map = model[0], model[1]
+    	if model_name == 'Diagonal':
+		rel = []
+		init_rel = []
+		for i in range(len(rel_array_map)): 
+            		rel.append(np.diag(rel_array_map[i]))
+			rel_array_map = np.reshape(rel, (len(rel_array_map), dim, dim))
+	'''
+    	if model_name == 'Decomposed': 
+		rel2_array_map = model[2]
+		rel = np.array([np.dot(rel_array_map[i], np.transpose(rel2_array_map[i])) for i in range(len(rel_array_map)])
+       	 	rel_array_embed = rel
+	'''
         h_batch, l_batch, t_batch, h_1_batch, t_1_batch = get_batches(ent_array_map, rel_array_map, pos_matrix, neg_matrix)
 
         score, y, sample_size = get_data_for_roc(pos_matrix, neg_matrix, ent_array_map, rel_array_map)
@@ -109,6 +123,11 @@ def roc_in_time(KBC_Model, PATH, x, rel_list, triples_matrix, pos_matrix, neg_ma
 def main(arg=None):
 
     KBC_Model = KBC_Util_Class(dataset, swap, model_name, dim)
+
+    
+    if not KBC_Model.data_exists(): 
+	return
+
     PATH, MODEL_PATH, INITIAL_MODEL = KBC_Model.get_PATHS()
 
     test_size = 1000
@@ -130,8 +149,27 @@ def main(arg=None):
    
     # load and unpack trained and initial model 
 
-    ent_array_map, rel_array_map = KBC_Model.load_model(MODEL_PATH) 
-    ent_init_array_map, rel_init_array_map = KBC_Model.load_model(INITIAL_MODEL) 
+    model = KBC_Model.load_model(MODEL_PATH) 
+    init_model = KBC_Model.load_model(INITIAL_MODEL) 
+    ent_array_map, rel_array_map = model[0], model[1]
+    ent_init_array_map, rel_init_array_map = init_model[0], init_model[1]
+    if model_name == 'Diagonal':
+	rel = []
+	init_rel = []
+	for i in range(len(rel_array_map)): 
+            rel.append(np.diag(rel_array_map[i]))
+	    init_rel.append(np.diag(rel_init_array_map[i]))
+	rel_array_map = np.reshape(rel, (len(rel_array_map), dim, dim))
+	rel_init_array_map = np.reshape(init_rel, (len(rel_array_map), dim, dim))
+    '''
+    if model_name == 'Decomposed': 
+	rel2_array_map = model[2]
+	rel = np.array([np.dot(rel_array_map[i], np.transpose(rel2_array_map[i])) for i in range(len(rel_array_map)])
+        rel_array_embed = rel
+	rel2_init_array_map = init_model[2]
+	init_rel = np.array([np.dot(rel_init_array_map[i], np.transpose(rel2_init_array_map[i])) for i in range(len(rel_array_map))])
+        rel_init_array_embed = init_rel
+    '''
 
     ent_list, rel_list = KBC_Model.get_int_to_URI()
     n = len(ent_list)
@@ -232,8 +270,8 @@ def main(arg=None):
     # ROC-analysis will draw two plots (based on learned and initial embedding) where each each point indicates a different model distinguished by different classification thresholds 
     roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x], score_init=score_init, y_init=y_init, reverse=False)
 
-    num = 20
-    roc_in_time(KBC_Model, PATH, x, rel_list, triples_matrix, pos_matrix, neg_matrix, num)
+    #num = 20
+    #roc_in_time(KBC_Model, PATH, x, rel_list, triples_matrix, pos_matrix, neg_matrix, num)
  
     # Now conduct a ROC-analysis for every relation based on a randomly drawn set of a max_bound for relation: 
     # Statistics of classfication performance across all relations is reported as a histogram with additional metrics
@@ -278,8 +316,8 @@ def main(arg=None):
 	    #y = np.array([1, 1, 2, 2])
 
 	    # calculate auc (area under the roc-curve) 
-	    #fpr, tpr, thresholds = metrics.roc_curve(y, score) #, pos_label=1)
-	    #auc_list.append(metrics.auc(fpr, tpr))
+	    fpr, tpr, thresholds = metrics.roc_curve(y, score) #, pos_label=1)
+	    auc_list.append(metrics.auc(fpr, tpr))
             counts_list.append(counts)
             '''
             print rel_list[x]
