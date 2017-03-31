@@ -250,7 +250,7 @@ class KBC_Class:
     def get_trainer(self, loss):
  	# building training:
         # Stochastic Gradient Descent (SGD) with Adagrad for adaptive learning-rates 
-        #trainer = tf.train.AdagradOptimizer(self.learning_rate).minimize(loss)
+        trainer = tf.train.AdagradOptimizer(self.learning_rate).minimize(loss)
         # alternatively:
-	trainer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(loss)
+	#trainer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(loss)
 	return trainer
