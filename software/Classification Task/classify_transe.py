@@ -110,10 +110,11 @@ def roc_in_time(KBC_Model, PATH, x, rel_list, triples_matrix, pos_matrix, neg_ma
 
         # ROC-analysis will draw two plots (based on learned and initial embedding) where each each point indicates a different model distinguished by different classification thresholds 
         #roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x], score_init=score_init, y_init=y_init, reverse=False)
-        roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x] +'\nepoch = '+str(a[i]))
-        #roc_analysis(score, y, counts, rel_counts, sample_size, title=' ', score_init=None, y_init=None, reverse=False)
-        #fpr, tpr, thresholds = metrics.roc_curve(y, score) #, pos_label=1)
-        #print metrics.auc(fpr, tpr)
+        if len(score) != 0: 
+		roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x] +'\nepoch = '+str(a[i]))
+		#roc_analysis(score, y, counts, rel_counts, sample_size, title=' ', score_init=None, y_init=None, reverse=False)
+		#fpr, tpr, thresholds = metrics.roc_curve(y, score) #, pos_label=1)
+		#print metrics.auc(fpr, tpr)
 
     
 def main(arg=None):
@@ -244,7 +245,8 @@ def main(arg=None):
     
 
     # ROC-analysis will draw two plots (based on learned and initial embedding) where each each point indicates a different model distinguished by different classification thresholds 
-    roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x], score_init=score_init, y_init=y_init, reverse=False)
+    if len(score) != 0: 
+    	roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x], score_init=score_init, y_init=y_init, reverse=False)
 
     #num = 30
     #roc_in_time(KBC_Model, PATH, x, rel_list, triples_matrix, pos_matrix, neg_matrix, num)
@@ -280,29 +282,21 @@ def main(arg=None):
 	    rel_counts = round(float(counts)/len(triples_matrix), 4)*100
 	    
             #to show graph 
-	    #roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x], score_init=score_init, y_init=y_init, reverse=False)
+	    if len(score) != 0: 
+		#roc.roc_analysis(score, y, counts, rel_counts, sample_size, title=rel_list[x], score_init=score_init, y_init=y_init, reverse=False)
 
-	    #score = [1/score[i] for i in range(len(score))]
-	    #score = [-score[i] for i in range(len(score))]
-	    #y.reverse()
+		# calculate auc (area under the roc-curve) 
+		fpr, tpr, thresholds = metrics.roc_curve(y, score) #, pos_label=1)
+		auc_list.append(metrics.auc(fpr, tpr))
+		counts_list.append(counts)
+		'''
+		print rel_list[x]
+		print x, counts, auc_list[x], '\n'
 
-	    #roc.roc_analysis(score, y, title=' ', reverse=False)
-	   
-	    
-	    #y = np.array([1, 1, 2, 2])
-
-	    # calculate auc (area under the roc-curve) 
-	    fpr, tpr, thresholds = metrics.roc_curve(y, score) #, pos_label=1)
-	    auc_list.append(metrics.auc(fpr, tpr))
-            counts_list.append(counts)
-            '''
-            print rel_list[x]
-            print x, counts, auc_list[x], '\n'
-
-            print np.mean(auc_list)
-            print np.min(auc_list) 
-            print np.max(auc_list) 
-            '''
+		print np.mean(auc_list)
+		print np.min(auc_list) 
+		print np.max(auc_list) 
+		'''
     stop = timeit.default_timer()
     print "time taken roc-analyses on all relations in triple store: {} min".format((stop - start)/60)
         
